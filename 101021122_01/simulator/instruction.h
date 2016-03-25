@@ -1,6 +1,7 @@
 #ifndef INSTRUCTION_H_INCLUDED
 #define INSTRUCTION_H_INCLUDED
 
+void initial_REG_MEM()
 void decode();
 void initial_SNAP();
 void adderPC();
@@ -9,43 +10,45 @@ void append_SNAP();
 /**R-type instructions**/
 void add(int rs, int rt, int rd);
 void addu(int rs, int rt, int rd);
-void sub(RS,RT,RD);
-void and(RS,RT,RD);
-void or(RS,RT,RD);
-void xor(RS,RT,RD);
-void nor(RS,RT,RD);
-void nand(RS,RT,RD);
-void slt(RS,RT,RD);
-void sll(RT,RD,SHAMT);
-void srl(RT,RD,SHAMT);
-void sra(RT,RD,SHAMT);
-void jr(RS,RT,RD);
+void sub(int, int, int);
+void and(int, int, int);
+void or(int, int, int);
+void xor(int, int, int);
+void nor(int, int, int);
+void nand(int, int, int);
+void slt(int, int, int);
+void sll(int, int, int);
+void srl(int, int, int);
+void sra(int, int, int);
+void jr(int, int, int);
 /**J-type instructions**/
-void j(C);
-void jal(C);
+void j(int);
+void jal(int);
 void halt();
 /**I-type instructions**/
-void addi(RS,RT,C);
-void addiu(RS,RT,C);
-void lw(RS,RT,C);
-void lh(RS,RT,C);
-void lhu(RS,RT,C);
-void lb(RS,RT,C);
-void lbu(RS,RT,C);
-void sw(RS,RT,C);
-void sh(RS,RT,C);
-void sb(RS,RT,C);
-void lui(RT,C);
-void andi(RS,RT,C);
-void ori(RS,RT,C);
-void nori(RS,RT,C);
-void slti(RS,RT,C);
-void beq(RS,RT,C);
-void bne(RS,RT,C);
-void bgtz(RS,C);
+void addi(int, int, int);
+void addiu(int, int, int);
+void lw(int, int, int);
+void lh(int, int, int);
+void lhu(int, int, int);
+void lb(int, int, int);
+void lbu(int, int, int);
+void sw(int, int, int);
+void sh(int, int, int);
+void sb(int, int, int);
+void lui(int, int);
+void andi(int, int, int);
+void ori(int, int, int);
+void nori(int, int, int);
+void slti(int, int, int);
+void beq(int, int, int);
+void bne(int, int, int);
+void bgtz(int, int);
 
 int HEXtoDEC_bit(char c);
 char DECtoHEX_bit(int n);
+int HEXtoDEC(int arr[], int n_bits, int start);
 int BINtoDEC(int arr[], int n_bits, int start);
+(int[]) DECtoBIN(int n, int n_bits);
 
 #endif // INSTRUCTION_H_INCLUDED

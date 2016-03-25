@@ -5,37 +5,54 @@ typedef struct regfile{
     int index;
     int value;
 } REGISTERS;
+typedef struct dmemory{
+    int index;
+    int address;
+} MEMORY;
 
 REGISTERS* REG[18];
+MEMORY* MEM[32];
 //extern char PC[12], SP[12];
 char PC[12], SP[12];
 int cycle;
 
-void initial_REG(){
-    REG[18]=(REGISTERS*)malloc(18*sizeof(REGISTERS));
-    int i;
-    for(i=0; i<18; i++){
-        REG[i]->index=8+i;
-        REG[i]->value=0;
-    }
-}
-void initial_SNAP(){
-    cycle=0;
-    FILE *fin, *fout;
-    char SP[12];
+void initial_REG_MEM(){
+    char NUM[12], input[12];
+    FILE *fin;
     fin=fopen("../test/dimage.bin","rt");
     if(fin==NULL) {
         printf("Fail To Open File dimage.bin!!");
         return;
     }
+    fscanf(fin,"%s",SP);
+    fscanf(fin,"%s",NUM);
+    int number=HEXtoDEC(NUM,8,9);
+    int i, j;
+
+    REG[18]=(REGISTERS*)malloc(18*sizeof(REGISTERS));
+    for(i=0; i<18; i++){
+        REG[i]->index=8+i;
+        REG[i]->value=0;
+    }
+    MEM[32]=(MEMORY*)malloc(32*sizeof(MEMORY));
+    for(i=0; i<number; i++){
+        fscanf(fin,"%s",input);
+        for(j=0; j<32; j++){
+            MEM[j]->index=j;
+            MEM[j]->address=HEXtoDEC(input, 8, 9);
+        }
+    }
+    fclose(fin);
+}
+void initial_SNAP(){
+    cycle=0;
+    FILE *fout;
     fout=fopen("../test/snap_test.rpt","w");
     if(fout==NULL) {
         printf("Fail To Open File snap_test.rpt!!");
-        fclose(fin);
+        //fclose(fin);
         return;
     }
-    fscanf(fin,"%s",SP);
-
     int i, j;
     fprintf(fout,"cycle 0\n");
     for(i=0; i<32; i++){
@@ -57,7 +74,6 @@ void initial_SNAP(){
     } fprintf(fout,"\n");
 
     fprintf(fout,"\n\n");
-    fclose(fin);
     fclose(fout);
 }
 void adderPC(){
@@ -142,7 +158,6 @@ void decode(){
     FILE *fin, *fout;
     char NUM[12], input[12];
     int INSTR[34]={};
-    int number=0;
     fin=fopen("../test/iimage.bin","rt");
     if(fin==NULL) {
         printf("Fail To Open File iimage.bin!!");
@@ -155,19 +170,14 @@ void decode(){
         return;
     }
 
-    int i, j, k, digit, base=1, term=0;
     fscanf(fin,"%s",PC);
     fscanf(fin,"%s",NUM);
-    for(i=9; i>=2; i--){
-        digit=HEXtoDEC_bit(NUM[i]);
-        if(digit==0) term=0;
-        else term=digit*base;
-        number=number+term;
-        base=base*16;
-    }
+    int number=HEXtoDEC(NUM,8,9);
+
     //fprintf(fout,"there are %d instructions\n",number);
     /**decode each instruction**/
     //while( fscanf(fin,"%s",&input)!=EOF ){
+    int i, j, k;
     for(i=0; i<number; i++){
         fscanf(fin,"%s",input);
         /**from hexadecimal input to binary INSTR**/
@@ -361,29 +371,89 @@ void sra(int rt, int rd, int shamt){
 void jr(RS,RT,RD);
 
 /**J-type instructions**/
-void j(C);
-void jal(C);
-void halt();
+void j(int c);
+void jal(int c);
+void halt(){
+    exit(1); //???
+}
 
 /**I-type instructions**/
-void addi(RS,RT,C);
-void addiu(RS,RT,C);
-void lw(RS,RT,C);
-void lh(RS,RT,C);
-void lhu(RS,RT,C);
-void lb(RS,RT,C);
-void lbu(RS,RT,C);
-void sw(RS,RT,C);
-void sh(RS,RT,C);
-void sb(RS,RT,C);
+void addi(int rs, int rt, int c){
+    REG[rt-8]->value = REG[rs-8]->value + REG[rt-8]->value;
+    //error: overflow
+}
+void addiu(int rs, int rt, int c){
+    REG[rt-8]->value = REG[rs-8]->value + REG[rt-8]->value;
+    //error: overflow
+}
+void lw(int rs, int rt, int c){
+    REG[rs-8]->value =
+}
+void lh(int rs, int rt, int c);
+void lhu(int rs, int rt, int c);
+void lb(int rs, int rt, int c);
+void lbu(int rs, int rt, int c);
+void sw(int rs, int rt, int c);
+void sh(int rs, int rt, int c);
+void sb(int rs, int rt, int c);
 void lui(RT,C);
-void andi(RS,RT,C);
-void ori(RS,RT,C);
-void nori(RS,RT,C);
-void slti(RS,RT,C);
-void beq(RS,RT,C);
-void bne(RS,RT,C);
-void bgtz(RS,C);
+void andi(int rs, int rt, int c){
+    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
+    int rt_bit[32]=DECtoBIN(c,32);
+    int i;
+    for(i=0; i<32; i++){
+        rt_bit[i]=rs_bit[i]&rt_bit[i];
+    }
+    REG[rt-8]->value=BINtoDEC(rt_bit,32,31);
+    free(rs_bit);
+    free(rt_bit);
+}
+void ori(int rs, int rt, int c){
+    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
+    int rt_bit[32]=DECtoBIN(c,32);
+    int i;
+    for(i=0; i<32; i++){
+        rt_bit[i]=rs_bit[i]|rt_bit[i];
+    }
+    REG[rt-8]->value=BINtoDEC(rt_bit,32,31);
+    free(rs_bit);
+    free(rt_bit);
+}
+void nori(int rs, int rt, int c){
+    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
+    int rt_bit[32]=DECtoBIN(c,32);
+    int i;
+    for(i=0; i<32; i++){
+        rt_bit[i]=~(rs_bit[i]|rt_bit[i]);
+    }
+    REG[rt-8]->value=BINtoDEC(rt_bit,32,31);
+    free(rs_bit);
+    free(rt_bit);
+}
+void slti(int rs, int rt, int c){
+    REG[rt-8]=((REG[rs-8]->value)<c)?1:0;
+}
+void beq(int rs, int rt, int c){
+    if(REG[rs-8]==REG[rt-8]){
+        PC=PC+4+4*c; //need to be modified
+    }
+    else
+        adderPC();
+}
+void bne(int rs, int rt, int c){
+    if(REG[rs-8]!=REG[rt-8]){
+        PC=PC+4+4*c; //need to be modified
+    }
+    else
+        adderPC();
+}
+void bgtz(int rs, int c){
+    if(REG[rs-8]>0){
+        PC=PC+4+4*c; //need to be modified
+    }
+    else
+        adderPC();
+}
 
 
 
@@ -417,6 +487,17 @@ char DECtoHEX_bit(int n){
     else if(n==14) return 'E';
     else if(n==15) return 'F';
     else return n+'0';
+}
+int HEXtoDEC(int arr[], int n_bits, int start){
+    int i, digit, term, number=0, base=1;
+    for(i=start; i>(start-n_bits); i--){
+        digit=HEXtoDEC_bit(arr[i]);
+        if(digit==0) term=0;
+        else term=digit*base;
+        number=number+term;
+        base=base*16;
+    }
+    return number;
 }
 int BINtoDEC(int arr[], int n_bits, int start){
     int sum=0, base=1, i;
