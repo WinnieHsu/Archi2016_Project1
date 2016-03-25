@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "instruction.h"
 
-typedef struct reg32{
+typedef struct regfile{
     int index;
     int value;
 } REGISTERS;
@@ -62,15 +62,15 @@ void initial_SNAP(){
 }
 void adderPC(){
     int carry=0, index=9;
-    int digit=HEXtoDEC(PC[index]);
+    int digit=HEXtoDEC_bit(PC[index]);
     digit=digit+4;
     if(digit<16){
-        PC[index]=DECtoHEX(digit);
+        PC[index]=DECtoHEX_bit(digit);
         carry=0;
         return;
     }
     else{
-        PC[index]=DECtoHEX(digit-16);
+        PC[index]=DECtoHEX_bit(digit-16);
         carry=1;
         index--;
         while(carry){
@@ -79,14 +79,14 @@ void adderPC(){
                 break;
             }
 
-            digit=HEXtoDEC(PC[index]);
+            digit=HEXtoDEC_bit(PC[index]);
             digit=digit+carry;
             if(digit<16){
-                PC[index]=DECtoHEX(digit);
+                PC[index]=DECtoHEX_bit(digit);
                 carry=0;
             }
             else{
-                PC[index]=DECtoHEX(digit-16);
+                PC[index]=DECtoHEX_bit(digit-16);
                 carry=1;
                 index--;
             }
@@ -159,7 +159,7 @@ void decode(){
     fscanf(fin,"%s",PC);
     fscanf(fin,"%s",NUM);
     for(i=9; i>=2; i--){
-        digit=HEXtoDEC(NUM[i]);
+        digit=HEXtoDEC_bit(NUM[i]);
         if(digit==0) term=0;
         else term=digit*base;
         number=number+term;
@@ -173,7 +173,7 @@ void decode(){
         /**from hexadecimal input to binary INSTR**/
         for(j=0; j<32; j++) INSTR[j]=0;
         for(j=9; j>=2; j--){
-            digit=HEXtoDEC(input[j]);
+            digit=HEXtoDEC_bit(input[j]);
             k=(j-1)*4-1;
             //printf("digit %d = INSTR[%d~%d] = ",digit,k-3,k);
             while(digit>0){
@@ -188,63 +188,205 @@ void decode(){
         /**analyze INSTR to OPcode, RS, RT, RD, etc.**/
         int OP=BINtoDEC(INSTR,6,5);
         if(OP==0){
-            //R-type instructions => go to ALU.c?
             int FUNCT=BINtoDEC(INSTR,6,31);
             int RS=BINtoDEC(INSTR,5,10);
             int RT=BINtoDEC(INSTR,5,15);
             int RD=BINtoDEC(INSTR,5,20);
             int SHAMT=BINtoDEC(INSTR,5,25);
+
             if(FUNCT==32) add(RS,RT,RD);
-            else if(FUNCT==33) printf("this is R-type instruction addu\n");
-            else if(FUNCT==34) printf("this is R-type instruction sub\n");
-            else if(FUNCT==36) printf("this is R-type instruction and\n");
-            else if(FUNCT==37) printf("this is R-type instruction or\n");
-            else if(FUNCT==38) printf("this is R-type instruction xor\n");
-            else if(FUNCT==39) printf("this is R-type instruction nor\n");
-            else if(FUNCT==40) printf("this is R-type instruction nand\n");
-            else if(FUNCT==42) printf("this is R-type instruction slt\n");
-            else if(FUNCT==0) printf("this is R-type instruction sll\n");
-            else if(FUNCT==2) printf("this is R-type instruction srl\n");
-            else if(FUNCT==3) printf("this is R-type instruction sra\n");
-            else if(FUNCT==8) printf("this is R-type instruction jr\n");
+            else if(FUNCT==33) addu(RS,RT,RD);
+            else if(FUNCT==34) sub(RS,RT,RD);
+            else if(FUNCT==36) and(RS,RT,RD);
+            else if(FUNCT==37) or(RS,RT,RD);
+            else if(FUNCT==38) xor(RS,RT,RD);
+            else if(FUNCT==39) nor(RS,RT,RD);
+            else if(FUNCT==40) nand(RS,RT,RD);
+            else if(FUNCT==42) slt(RS,RT,RD);
+            else if(FUNCT==0) sll(RT,RD,SHAMT);
+            else if(FUNCT==2) srl(RT,RD,SHAMT);
+            else if(FUNCT==3) sra(RT,RD,SHAMT);
+            else if(FUNCT==8) jr(RS,RT,RD);
             else printf("this is error R-instruction\n");
         }
-        else{
-            if(OP==8) printf("this is I-type instruction addi\n");
-            else if(OP==9) printf("this is I-type instruction addiu\n");
-            else if(OP==35) printf("this is I-type instruction lw\n");
-            else if(OP==33) printf("this is I-type instruction lh\n");
-            else if(OP==37) printf("this is I-type instruction lhu\n");
-            else if(OP==32) printf("this is I-type instruction lb\n");
-            else if(OP==36) printf("this is I-type instruction lbu\n");
-            else if(OP==43) printf("this is I-type instruction sw\n");
-            else if(OP==41) printf("this is I-type instruction sh\n");
-            else if(OP==40) printf("this is I-type instruction sb\n");
-            else if(OP==15) printf("this is I-type instruction lui\n");
-            else if(OP==12) printf("this is I-type instruction andi\n");
-            else if(OP==13) printf("this is I-type instruction ori\n");
-            else if(OP==14) printf("this is I-type instruction nori\n");
-            else if(OP==10) printf("this is I-type instruction slti\n");
-            else if(OP==4) printf("this is I-type instruction beq\n");
-            else if(OP==5) printf("this is I-type instruction bne\n");
-            else if(OP==7) printf("this is I-type instruction bgtz\n");
-
-            else if(OP==2) printf("this is J-type instruction j\n");
-            else if(OP==3) printf("this is J-type instruction jal\n");
-            else if(OP==63) printf("this is Specialized instruction halt\n");
-            else printf("this is error instruction\n");
+        else if(OP==2||OP==3||OP==63){
+            int C=BINtoDEC(INSTR,26,31);
+            if(OP==2) j(C);
+            else if(OP==3) jal(C);
+            else if(OP==63) halt();
+            else printf("this is error J-instruction\n");
         }
+        else{
+            int RS=BINtoDEC(INSTR,5,10);
+            int RT=BINtoDEC(INSTR,5,15);
+            int C=BINtoDEC(INSTR,16,31);
 
+            if(OP==8) addi(RS,RT,C);
+            else if(OP==9) addiu(RS,RT,C);
+            else if(OP==35) lw(RS,RT,C);
+            else if(OP==33) lh(RS,RT,C);
+            else if(OP==37) lhu(RS,RT,C);
+            else if(OP==32) lb(RS,RT,C);
+            else if(OP==36) lbu(RS,RT,C);
+            else if(OP==43) sw(RS,RT,C);
+            else if(OP==41) sh(RS,RT,C);
+            else if(OP==40) sb(RS,RT,C);
+            else if(OP==15) lui(RT,C);
+            else if(OP==12) andi(RS,RT,C);
+            else if(OP==13) ori(RS,RT,C);
+            else if(OP==14) nori(RS,RT,C);
+            else if(OP==10) slti(RS,RT,C);
+            else if(OP==4) beq(RS,RT,C);
+            else if(OP==5) bne(RS,RT,C);
+            else if(OP==7) bgtz(RS,C);
+            else printf("this is I-error instruction\n");
+        }
     }
     fclose(fin);
     fclose(fout);
 }
 
+/**R-type instructions**/
 void add(int rs, int rt, int rd){
-    int i;
-    for(i=0; i<=18; i++){
-    }
+    REG[rd-8]->value = REG[rs-8]->value + REG[rt-8]->value;
+    //error: overflow
 }
+void addu(int rs, int rt, int rd){
+    REG[rd-8]->value = REG[rs-8]->value + REG[rt-8]->value;
+    //error: overflow
+}
+void sub(int rs, int rt, int rd){
+    REG[rd-8]->value = REG[rs-8]->value - REG[rt-8]->value;
+}
+void and(int rs, int rt, int rd){
+    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
+    int rt_bit[32]=DECtoBIN(REG[rt-8]->value,32);
+    int i;
+    for(i=0; i<32; i++){
+        rs_bit[i]=rs_bit[i]&rt_bit[i];
+    }
+    REG[rd-8]->value=BINtoDEC(rs_bit,32,31);
+    free(rs_bit);
+    free(rt_bit);
+}
+void or(int rs, int rt, int rd){
+    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
+    int rt_bit[32]=DECtoBIN(REG[rt-8]->value,32);
+    int i;
+    for(i=0; i<32; i++){
+        rs_bit[i]=rs_bit[i]|rt_bit[i];
+    }
+    REG[rd-8]->value=BINtoDEC(rs_bit,32,31);
+    free(rs_bit);
+    free(rt_bit);
+}
+void xor(int rs, int rt, int rd){
+    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
+    int rt_bit[32]=DECtoBIN(REG[rt-8]->value,32);
+    int i;
+    for(i=0; i<32; i++){
+        rs_bit[i]=rs_bit[i]^rt_bit[i];
+    }
+    REG[rd-8]->value=BINtoDEC(rs_bit,32,31);
+    free(rs_bit);
+    free(rt_bit);
+}
+void nor(int rs, int rt, int rd){
+    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
+    int rt_bit[32]=DECtoBIN(REG[rt-8]->value,32);
+    int i;
+    for(i=0; i<32; i++){
+        rs_bit[i]=~(rs_bit[i]|rt_bit[i]);
+    }
+    REG[rd-8]->value=BINtoDEC(rs_bit,32,31);
+    free(rs_bit);
+    free(rt_bit);
+}
+void nand(int rs, int rt, int rd){
+    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
+    int rt_bit[32]=DECtoBIN(REG[rt-8]->value,32);
+    int i;
+    for(i=0; i<32; i++){
+        rs_bit[i]=~(rs_bit[i]&rt_bit[i]);
+    }
+    REG[rd-8]->value=BINtoDEC(rs_bit,32,31);
+    free(rs_bit);
+    free(rt_bit);
+}
+void slt(int rs, int rt, int rd){
+    REG[rd-8]=((REG[rs-8]->value)<(REG[rt-8]->value))?1:0;
+}
+void sll(int rt, int rd, int shamt){
+    int rd_bit[32]=DECtoBIN(REG[rd-8]->value,32);
+    int rt_bit[32]=DECtoBIN(REG[rt-8]->value,32);
+    int i;
+    for(i=shamt; i<32; i++){
+        rd_bit[i-shamt]=rt_bit[i];
+    }
+    for(i=32-shamt; i<32; i++){
+        rd_bit[i]=0;
+    }
+    REG[rd-8]->value=BINtoDEC(rd_bit,32,31);
+    free(rd_bit);
+    free(rt_bit);
+}
+void srl(int rt, int rd, int shamt){
+    int rd_bit[32]=DECtoBIN(REG[rd-8]->value,32);
+    int rt_bit[32]=DECtoBIN(REG[rt-8]->value,32);
+    int i;
+    for(i=0; i<32-shamt; i++){
+        rd_bit[i+shamt]=rt_bit[i];
+    }
+    for(i=0; i<shamt; i++){
+        rd_bit[i]=0;
+    }
+    REG[rd-8]->value=BINtoDEC(rd_bit,32,31);
+    free(rd_bit);
+    free(rt_bit);
+}
+void sra(int rt, int rd, int shamt){
+    int rd_bit[32]=DECtoBIN(REG[rd-8]->value,32);
+    int rt_bit[32]=DECtoBIN(REG[rt-8]->value,32);
+    int i;
+    for(i=0; i<32-shamt; i++){
+        rd_bit[i+shamt]=rt_bit[i];
+    }
+    for(i=0; i<shamt; i++){
+        rd_bit[i]=rt_bit[0];
+    }
+    REG[rd-8]->value=BINtoDEC(rd_bit,32,31);
+    free(rd_bit);
+    free(rt_bit);
+}
+void jr(RS,RT,RD);
+
+/**J-type instructions**/
+void j(C);
+void jal(C);
+void halt();
+
+/**I-type instructions**/
+void addi(RS,RT,C);
+void addiu(RS,RT,C);
+void lw(RS,RT,C);
+void lh(RS,RT,C);
+void lhu(RS,RT,C);
+void lb(RS,RT,C);
+void lbu(RS,RT,C);
+void sw(RS,RT,C);
+void sh(RS,RT,C);
+void sb(RS,RT,C);
+void lui(RT,C);
+void andi(RS,RT,C);
+void ori(RS,RT,C);
+void nori(RS,RT,C);
+void slti(RS,RT,C);
+void beq(RS,RT,C);
+void bne(RS,RT,C);
+void bgtz(RS,C);
+
+
+
 /////////////////////////////////////////////
 
 int main(){
@@ -258,7 +400,7 @@ int main(){
 }
 
 /////////////////////////////////////////////
-int HEXtoDEC(char c){
+int HEXtoDEC_bit(char c){
     if(c=='A') return 10;
     else if(c=='B') return 11;
     else if(c=='C') return 12;
@@ -267,7 +409,7 @@ int HEXtoDEC(char c){
     else if(c=='F') return 15;
     else return c-'0';
 }
-char DECtoHEX(int n){
+char DECtoHEX_bit(int n){
     if(n==10) return 'A';
     else if(n==11) return 'B';
     else if(n==12) return 'C';
@@ -283,4 +425,14 @@ int BINtoDEC(int arr[], int n_bits, int start){
         base=base*2;
     }
     return sum;
+}
+(int[]) DECtoBIN(int n, int n_bits){
+    int arr[n_bits]={}, dec=n, i=n_bits-1;
+    int[] arr=(int[])malloc(n_bits*sizeof(int));
+    while(i>0){
+        arr[i]=dec%2;
+        dec=dec/2;
+        i--;
+    }
+    return arr;
 }
