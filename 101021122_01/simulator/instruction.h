@@ -49,6 +49,6 @@ int HEXtoDEC_bit(char c);
 char DECtoHEX_bit(int n);
 int HEXtoDEC(int arr[], int n_bits, int start);
 int BINtoDEC(int arr[], int n_bits, int start);
-(int[]) DECtoBIN(int n, int n_bits);
+int* DECtoBIN(int n, int n_bits);
 
 #endif // INSTRUCTION_H_INCLUDED

@@ -7,6 +7,7 @@ typedef struct regfile{
 } REGISTERS;
 typedef struct dmemory{
     int index;
+    int value;
     int address;
 } MEMORY;
 
@@ -39,6 +40,7 @@ void initial_REG_MEM(){
         fscanf(fin,"%s",input);
         for(j=0; j<32; j++){
             MEM[j]->index=j;
+            MEM[j]->value=0;
             MEM[j]->address=HEXtoDEC(input, 8, 9);
         }
     }
@@ -174,7 +176,6 @@ void decode(){
     fscanf(fin,"%s",NUM);
     int number=HEXtoDEC(NUM,8,9);
 
-    //fprintf(fout,"there are %d instructions\n",number);
     /**decode each instruction**/
     //while( fscanf(fin,"%s",&input)!=EOF ){
     int i, j, k;
@@ -368,11 +369,11 @@ void sra(int rt, int rd, int shamt){
     free(rd_bit);
     free(rt_bit);
 }
-void jr(RS,RT,RD);
+void jr(int rs, int rt, int rd){}
 
 /**J-type instructions**/
-void j(int c);
-void jal(int c);
+void j(int c){}
+void jal(int c){}
 void halt(){
     exit(1); //???
 }
@@ -387,16 +388,18 @@ void addiu(int rs, int rt, int c){
     //error: overflow
 }
 void lw(int rs, int rt, int c){
-    REG[rs-8]->value =
+    REG[rt-8]->value = MEM[rs+c]->value //改成address=rs+c的MEM的value才對
 }
-void lh(int rs, int rt, int c);
-void lhu(int rs, int rt, int c);
-void lb(int rs, int rt, int c);
-void lbu(int rs, int rt, int c);
-void sw(int rs, int rt, int c);
-void sh(int rs, int rt, int c);
-void sb(int rs, int rt, int c);
-void lui(RT,C);
+void lh(int rs, int rt, int c){}
+void lhu(int rs, int rt, int c){}
+void lb(int rs, int rt, int c){}
+void lbu(int rs, int rt, int c){}
+void sw(int rs, int rt, int c){
+    MEM[rs+c]->value = REG[rt-8]->value //改成address=rs+c的MEM的value才對
+}
+void sh(int rs, int rt, int c){}
+void sb(int rs, int rt, int c){}
+void lui(int rt, int c){}
 void andi(int rs, int rt, int c){
     int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
     int rt_bit[32]=DECtoBIN(c,32);
@@ -462,6 +465,7 @@ void bgtz(int rs, int c){
 int main(){
     int i;
     decode();
+    initial_REG_MEM()
     initial_SNAP();
     append_SNAP();
     append_SNAP();
@@ -507,7 +511,7 @@ int BINtoDEC(int arr[], int n_bits, int start){
     }
     return sum;
 }
-(int[]) DECtoBIN(int n, int n_bits){
+int* DECtoBIN(int n, int n_bits){
     int arr[n_bits]={}, dec=n, i=n_bits-1;
     int[] arr=(int[])malloc(n_bits*sizeof(int));
     while(i>0){
