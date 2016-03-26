@@ -24,7 +24,6 @@ void jr(int, int, int);
 /**J-type instructions**/
 void jj(int);
 void jal(int);
-void halt();
 /**I-type instructions**/
 void addi(int, int, int);
 void addiu(int, int, int);
@@ -50,5 +49,6 @@ char DECtoHEX_bit(int n);
 int char_HEXtoDEC(char arr[], int n_bits, int start);
 int int_HEXtoDEC(int arr[], int n_bits, int start);
 int BINtoDEC(int arr[], int n_bits, int start);
+int flip(int n);
 
 #endif // INSTRUCTION_H_INCLUDED
