@@ -1,55 +1,48 @@
 #include <stdio.h>
 #include "instruction.h"
 
-typedef struct regfile{
-    int index;
-    int value;
-} REGISTERS;
-typedef struct dmemory{
-    int index;
-    int value;
-    int address;
-} MEMORY;
-
-REGISTERS* REG[18];
-MEMORY* MEM[32];
-//extern char PC[12], SP[12];
-char PC[12], SP[12];
+int A[4][8], V[2][8], REG[18][8]={}; //denote the value of register t0~t7, S0~s7, t7~t8
+int MEM_num, MEM_value[34]={};
+char MEM[34][12], PC[12], SP[12];
 int cycle;
 
-void initial_REG_MEM(){
-    char NUM[12], input[12];
+void initialize(){
+    /**read dimage and store in MEM**/
+    char NUM[12];
     FILE *fin;
-    fin=fopen("../test/dimage.bin","rt");
+    fin=fopen("../testcase/dimage.bin","rt");
     if(fin==NULL) {
         printf("Fail To Open File dimage.bin!!");
         return;
     }
     fscanf(fin,"%s",SP);
     fscanf(fin,"%s",NUM);
-    int number=HEXtoDEC(NUM,8,9);
-    int i, j;
 
-    REG[18]=(REGISTERS*)malloc(18*sizeof(REGISTERS));
-    for(i=0; i<18; i++){
-        REG[i]->index=8+i;
-        REG[i]->value=0;
-    }
-    MEM[32]=(MEMORY*)malloc(32*sizeof(MEMORY));
-    for(i=0; i<number; i++){
-        fscanf(fin,"%s",input);
-        for(j=0; j<32; j++){
-            MEM[j]->index=j;
-            MEM[j]->value=0;
-            MEM[j]->address=HEXtoDEC(input, 8, 9);
-        }
+    int MEM_num=HEXtoDEC(NUM,8,9);
+    int i, j;
+    for(i=0; i<MEM_num; i++){
+        fscanf(fin,"%s",MEM[i][]);
     }
     fclose(fin);
+
+    /**initialize ARG, V, REG**/
+    for(i=0; i<4; i++){
+        for(j=0; j<8; j++)
+            A[i][j]=0;
+    }
+    for(i=0; i<2; i++){
+        for(j=0; j<8; j++)
+            V[i][j]=0;
+    }
+    for(i=0; i<18; i++){
+        for(j=0; j<8; j++)
+            REG[i][j]=0;
+    }
 }
 void initial_SNAP(){
     cycle=0;
     FILE *fout;
-    fout=fopen("../test/snap_test.rpt","w");
+    fout=fopen("../testcase/snap_test.rpt","w");
     if(fout==NULL) {
         printf("Fail To Open File snap_test.rpt!!");
         //fclose(fin);
@@ -114,7 +107,7 @@ void adderPC(){
 void append_SNAP(){
     cycle++;
     FILE *fout;
-    fout=fopen("../test/snap_test.rpt","a");
+    fout=fopen("../testcase/snap_test.rpt","a");
     if(fout==NULL) {
         printf("Fail To Open File snap_test.rpt!!");
         //fclose(fin);
@@ -132,16 +125,22 @@ void append_SNAP(){
                 fprintf(fout,"%c",SP[j]);
             }
         }
-        /*
-        else if(i>=2 && i<=3){ //return value v0~v1
+        else{
+            fprintf(fout,"0x");
+            if(i>=2 && i<=3){ //return value v0~v1
+                for(j=0; j<8; j++)
+                    fprintf(fout,"%d",V[i-2][j]);
+            }
+            else if(i>=4 && i<=7){ //arguments a0~a3
+                for(j=0; j<8; j++)
+                    fprintf(fout,"%d",A[i-4][j]);
+            }
+            else if(i>=8&&i<=25){ //register t0~t7, s0~s7, t8~t9
+                for(j=0; j<8; j++)
+                    fprintf(fout,"%d",REG[i-8][j]);
+            }
+            else fprintf(fout,"00000000");
         }
-        else if(i>=4 && i<=7){ //arguments a0~a3
-        }
-        else if((i>=8&&i<=15) || (i>=24&&i<=25)){ //t registers t0~t7, t8~t9
-        }
-        else if(i>=16 && i<=23){ //s registers s0~s7
-        }*/
-        else fprintf(fout,"0x00000000");
         fprintf(fout,"\n");
     }
 
@@ -160,12 +159,12 @@ void decode(){
     FILE *fin, *fout;
     char NUM[12], input[12];
     int INSTR[34]={};
-    fin=fopen("../test/iimage.bin","rt");
+    fin=fopen("../testcase/iimage.bin","rt");
     if(fin==NULL) {
         printf("Fail To Open File iimage.bin!!");
         return;
     }
-    fout=fopen("../test/out1.bin","w");
+    fout=fopen("../testcase/out1.bin","w"); //need to be deleted
     if(fout==NULL) {
         printf("Fail To Open File out1.bin!!");
         fclose(fin);
@@ -174,12 +173,12 @@ void decode(){
 
     fscanf(fin,"%s",PC);
     fscanf(fin,"%s",NUM);
-    int number=HEXtoDEC(NUM,8,9);
+    int INSTR_num=HEXtoDEC(NUM,8,9);
 
     /**decode each instruction**/
-    //while( fscanf(fin,"%s",&input)!=EOF ){
+    //while( fscanf(fin,"%s",&input)!=EOF ){ 不知道這樣寫行不行
     int i, j, k;
-    for(i=0; i<number; i++){
+    for(i=0; i<INSTR_num; i++){
         fscanf(fin,"%s",input);
         /**from hexadecimal input to binary INSTR**/
         for(j=0; j<32; j++) INSTR[j]=0;

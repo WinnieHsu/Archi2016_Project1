@@ -1,7 +1,7 @@
 #ifndef INSTRUCTION_H_INCLUDED
 #define INSTRUCTION_H_INCLUDED
 
-void initial_REG_MEM()
+void initialize()
 void decode();
 void initial_SNAP();
 void adderPC();
