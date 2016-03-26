@@ -43,9 +43,9 @@ void initialize(){
 void initial_SNAP(){
     cycle=0;
     FILE *fout;
-    fout=fopen("../testcase/snap_test.rpt","w");
+    fout=fopen("snapshot.rpt","w");
     if(fout==NULL) {
-        printf("Fail To Open File snap_test.rpt!!");
+        printf("Fail To Open File snapshot.rpt!!");
         //fclose(fin);
         return;
     }
@@ -108,9 +108,9 @@ void adderPC(){
 void append_SNAP(){
     cycle++;
     FILE *fout;
-    fout=fopen("../testcase/snap_test.rpt","a");
+    fout=fopen("snapshot.rpt","a");
     if(fout==NULL) {
-        printf("Fail To Open File snap_test.rpt!!");
+        printf("Fail To Open File snapshot.rpt!!");
         //fclose(fin);
         return;
     }
@@ -160,12 +160,10 @@ void append_SNAP(){
     fprintf(fout,"\n\n");
     fclose(fout);
 }
-void error_detect(){
-}
 
 
 void decode(){
-    FILE *fin, *fout;
+    FILE *fin, *fout, *fout1;
     char NUM[12], input[12];
     int INSTR[34]={};
     fin=fopen("../testcase/iimage.bin","rt");
@@ -173,8 +171,14 @@ void decode(){
         printf("Fail To Open File iimage.bin!!");
         return;
     }
-    fout=fopen("../testcase/out1.bin","w"); //need to be deleted
+    fout=fopen("error_dump.rpt","a"); //need to be deleted
     if(fout==NULL) {
+        printf("Fail To Open File error_dump.rpt!!");
+        fclose(fin);
+        return;
+    }
+    fout1=fopen("out1.bin","w"); //need to be deleted
+    if(fout1==NULL) {
         printf("Fail To Open File out1.bin!!");
         fclose(fin);
         return;
@@ -186,7 +190,6 @@ void decode(){
     initial_SNAP();
 
     /**decode each instruction**/
-    //while( fscanf(fin,"%s",&input)!=EOF ){ 不知道這樣寫行不行
     int i, j, k, digit;
     for(i=0; i<INSTR_num; i++){
         fscanf(fin,"%s",input);
@@ -202,8 +205,8 @@ void decode(){
                 k--;
             }
         }
-        for(j=0; j<32; j++) fprintf(fout,"%d",INSTR[j]);
-        fprintf(fout,"\n");
+        for(j=0; j<32; j++) fprintf(fout1,"%d",INSTR[j]);
+        fprintf(fout1,"\n");
 
         /**analyze INSTR to OPcode, RS, RT, RD, etc.**/
         int OP=BINtoDEC(INSTR,6,5);
@@ -265,16 +268,34 @@ void decode(){
             else printf("this is I-error instruction\n");
         }
         append_SNAP();
+
+        /**do error detection**/
+        if(write$0_error){
+            fprintf(fout, "In cycle %d: Write $0 Error\n", cycle);
+            write$0_error=0;
+        }
+        if(number_overflow){
+            fprintf(fout, "In cycle %d: Number Overflow\n", cycle);
+            number_overflow=0;
+        }
+        if(memory_overflow){
+            fprintf(fout, "In cycle %d: Address Overflow\n", cycle);
+            break;
+        }
+        if(misaligned){
+            fprintf(fout, "In cycle %d: Misalignment Error\n", cycle);
+            break;
+        }
     }
     fclose(fin);
     fclose(fout);
+    fclose(fout1);
 }
 
 /**R-type instructions**/
 void add(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, carry=0;
@@ -293,7 +314,6 @@ void add(int rs, int rt, int rd){
 void addu(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, carry=0;
@@ -312,7 +332,6 @@ void addu(int rs, int rt, int rd){
 void sub(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, k, digit, carry=1;
@@ -356,11 +375,20 @@ void sub(int rs, int rt, int rd){
 void and(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, k, digit;
+    if(rs==0 || rt==0){
+        for(j=0; j<8; j++)
+            REG[rd-8][j]=0;
+        return;
+    }
+
     int rsbin[32], rtbin[32];
+    for(j=0; j<32; j++){
+        rsbin[j]=0;
+        rtbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rs-8][j];
@@ -390,11 +418,14 @@ void and(int rs, int rt, int rd){
 void or(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, k, digit;
     int rsbin[32], rtbin[32];
+    for(j=0; j<32; j++){
+        rsbin[j]=0;
+        rtbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rs-8][j];
@@ -424,11 +455,14 @@ void or(int rs, int rt, int rd){
 void xor(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, k, digit;
     int rsbin[32], rtbin[32];
+    for(j=0; j<32; j++){
+        rsbin[j]=0;
+        rtbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rs-8][j];
@@ -458,11 +492,14 @@ void xor(int rs, int rt, int rd){
 void nor(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, k, digit;
     int rsbin[32], rtbin[32];
+    for(j=0; j<32; j++){
+        rsbin[j]=0;
+        rtbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rs-8][j];
@@ -492,11 +529,14 @@ void nor(int rs, int rt, int rd){
 void nand(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, k, digit;
     int rsbin[32], rtbin[32];
+    for(j=0; j<32; j++){
+        rsbin[j]=0;
+        rtbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rs-8][j];
@@ -526,7 +566,6 @@ void nand(int rs, int rt, int rd){
 void slt(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int rshex=int_HEXtoDEC(REG[rs-8],8,7);
@@ -547,11 +586,14 @@ void slt(int rs, int rt, int rd){
 void sll(int rt, int rd, int shamt){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int i, j, k, digit;
     int rdbin[32], rtbin[32];
+    for(j=0; j<32; j++){
+        rdbin[j]=0;
+        rtbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rt-8][j];
@@ -581,11 +623,14 @@ void sll(int rt, int rd, int shamt){
 void srl(int rt, int rd, int shamt){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int i, j, k, digit;
     int rdbin[32], rtbin[32];
+    for(j=0; j<32; j++){
+        rdbin[j]=0;
+        rtbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rt-8][j];
@@ -615,11 +660,14 @@ void srl(int rt, int rd, int shamt){
 void sra(int rt, int rd, int shamt){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int i, j, k, digit;
     int rdbin[32], rtbin[32];
+    for(j=0; j<32; j++){
+        rdbin[j]=0;
+        rtbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rt-8][j];
@@ -649,7 +697,6 @@ void sra(int rt, int rd, int shamt){
 void jr(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
 }
@@ -662,11 +709,13 @@ void jal(int c){}
 void addi(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
-    int j=7, digit=c, chex[8];
+
+    int j, digit=c, chex[8];
+    for(j=7; j>=0; j--) chex[j]=0;
     //convert from decimal to hexadecimal
+    j=7;
     while(digit>0){
         chex[j]=digit%16;
         digit=digit/16;
@@ -689,11 +738,12 @@ void addi(int rs, int rt, int c){
 void addiu(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
-    int j=7, digit=c, chex[8];
     //convert from decimal to hexadecimal
+    int j, digit=c, chex[8];
+    for(j=7; j>=0; j--) chex[j]=0;
+    j=7;
     while(digit>0){
         chex[j]=digit%16;
         digit=digit/16;
@@ -716,7 +766,6 @@ void addiu(int rs, int rt, int c){
 void lw(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     //REG[rt-8] = MEM[rs+c] //改成address=rs+c的MEM的value才對
@@ -724,35 +773,30 @@ void lw(int rs, int rt, int c){
 void lh(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
 }
 void lhu(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
 }
 void lb(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
 }
 void lbu(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
 }
 void sw(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     //MEM[rs+c]->value = REG[rt-8]->value //改成address=rs+c的MEM的value才對
@@ -762,15 +806,12 @@ void sb(int rs, int rt, int c){}
 void lui(int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
 }
 void andi(int rs, int rt, int c){
-    //printf("enter andi() with rs=%d, rt=%d, c=%d\n",rs,rt,c);
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, k, digit;
@@ -781,6 +822,10 @@ void andi(int rs, int rt, int c){
     }
 
     int rsbin[32], cbin[32];
+    for(j=0; j<32; j++){
+        rsbin[j]=0;
+        cbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rs-8][j];
@@ -807,11 +852,14 @@ void andi(int rs, int rt, int c){
 void ori(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, k, digit;
     int rsbin[32], cbin[32];
+    for(j=0; j<32; j++){
+        rsbin[j]=0;
+        cbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rs-8][j];
@@ -838,11 +886,14 @@ void ori(int rs, int rt, int c){
 void nori(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int j, k, digit;
     int rsbin[32], cbin[32];
+    for(j=0; j<32; j++){
+        rsbin[j]=0;
+        cbin[j]=0;
+    }
     //convert from hexadecimal to binary
     for(j=7; j>=0; j--){
         digit=REG[rs-8][j];
@@ -869,7 +920,6 @@ void nori(int rs, int rt, int c){
 void slti(int rs, int rt, int c){
     if(rt==0){
         write$0_error=1;
-        error_detect(); //???
         return;
     }
     int rshex=int_HEXtoDEC(REG[rs-8],8,7);
