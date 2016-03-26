@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include "instruction.h"
 
-int A[4][8], V[2][8], REG[18][8]={}; //denote the value of register t0~t7, S0~s7, t7~t8
-int MEM_num, MEM_value[34]={};
+int A[4][8], V[2][8], REG[18][8]; //denote the value of register t0~t7, S0~s7, t7~t8
 char MEM[34][12], PC[12], SP[12];
+int MEM_num, MEM_value[34];
 int cycle;
 
 void initialize(){
@@ -21,7 +21,7 @@ void initialize(){
     int MEM_num=char_HEXtoDEC(NUM,8,9);
     int i, j;
     for(i=0; i<MEM_num; i++){
-        fscanf(fin,"%s",MEM[i][]);
+        fscanf(fin,"%s",MEM[i]);
     }
     fclose(fin);
 
@@ -227,7 +227,7 @@ void decode(){
         }
         else if(OP==2||OP==3||OP==63){
             int C=BINtoDEC(INSTR,26,31);
-            if(OP==2) j(C);
+            if(OP==2) jj(C);
             else if(OP==3) jal(C);
             else if(OP==63) halt();
             else printf("this is error J-instruction\n");
@@ -257,6 +257,7 @@ void decode(){
             else if(OP==7) bgtz(RS,C);
             else printf("this is I-error instruction\n");
         }
+        append_SNAP();
     }
     fclose(fin);
     fclose(fout);
@@ -514,9 +515,9 @@ void sll(int rt, int rd, int shamt){
         }
     }
     for(i=shamt; i<32; i++)
-        rd_bit[i-shamt]=rt_bit[i];
+        rdbin[i-shamt]=rtbin[i];
     for(i=32-shamt; i<32; i++)
-        rd_bit[i]=0;
+        rdbin[i]=0;
     for(j=7; j>=0; j--) //convert back to hexadecimal
         REG[rd-8][j]=BINtoDEC(rdbin,4,(j+1)*4-1);
 }
@@ -543,9 +544,9 @@ void srl(int rt, int rd, int shamt){
         }
     }
     for(i=0; i<32-shamt; i++)
-        rd_bit[i+shamt]=rt_bit[i];
+        rdbin[i+shamt]=rtbin[i];
     for(i=0; i<shamt; i++)
-        rd_bit[i]=0;
+        rdbin[i]=0;
     for(j=7; j>=0; j--) //convert back to hexadecimal
         REG[rd-8][j]=BINtoDEC(rdbin,4,(j+1)*4-1);
 }
@@ -572,16 +573,16 @@ void sra(int rt, int rd, int shamt){
         }
     }
     for(i=0; i<32-shamt; i++)
-        rd_bit[i+shamt]=rt_bit[i];
+        rdbin[i+shamt]=rtbin[i];
     for(i=0; i<shamt; i++)
-        rd_bit[i]=rt_bit[0];
+        rdbin[i]=rtbin[0];
     for(j=7; j>=0; j--) //convert back to hexadecimal
         REG[rd-8][j]=BINtoDEC(rdbin,4,(j+1)*4-1);
 }
 void jr(int rs, int rt, int rd){}
 
 /**J-type instructions**/
-void j(int c){}
+void jj(int c){}
 void jal(int c){}
 void halt(){
     exit(1); //???
@@ -633,14 +634,14 @@ void addiu(int rs, int rt, int c){
     //error: overflow
 }
 void lw(int rs, int rt, int c){
-    REG[rt-8]->value = MEM[rs+c]->value //改成address=rs+c的MEM的value才對
+    //REG[rt-8] = MEM[rs+c] //改成address=rs+c的MEM的value才對
 }
 void lh(int rs, int rt, int c){}
 void lhu(int rs, int rt, int c){}
 void lb(int rs, int rt, int c){}
 void lbu(int rs, int rt, int c){}
 void sw(int rs, int rt, int c){
-    MEM[rs+c]->value = REG[rt-8]->value //改成address=rs+c的MEM的value才對
+    //MEM[rs+c]->value = REG[rt-8]->value //改成address=rs+c的MEM的value才對
 }
 void sh(int rs, int rt, int c){}
 void sb(int rs, int rt, int c){}
@@ -739,39 +740,56 @@ void slti(int rs, int rt, int c){
     }
 }
 void beq(int rs, int rt, int c){
-    if(REG[rs-8]==REG[rt-8]){
+    int j, result=1;
+    for(j=7; j>=0; j--){
+        if(REG[rs-8][j]!=REG[rt-8][j]){
+            result=0;
+            break;
+        }
+    }
+    /*if(result){
         PC=PC+4+4*c; //need to be modified
     }
-    else
+    else*/
         adderPC();
 }
 void bne(int rs, int rt, int c){
-    if(REG[rs-8]!=REG[rt-8]){
+    int j, result=0;
+    for(j=7; j>=0; j--){
+        if(REG[rs-8][j]!=REG[rt-8][j]){
+            result=1;
+            break;
+        }
+    }
+    /*if(result){
         PC=PC+4+4*c; //need to be modified
     }
-    else
+    else*/
         adderPC();
 }
 void bgtz(int rs, int c){
-    if(REG[rs-8]>0){
+    int j, not0=0;
+    for(j=7; j>=0; j--){
+        if(REG[rs-8][j]>0){
+            not0=1;
+            break;
+        }
+    }
+    /*if(REG[rs-8][0]==0 && not0){
         PC=PC+4+4*c; //need to be modified
     }
-    else
+    else*/
         adderPC();
 }
-
 
 
 /////////////////////////////////////////////
 
 int main(){
     int i;
-    decode();
-    initial_REG_MEM()
+    initialize();
     initial_SNAP();
-    append_SNAP();
-    append_SNAP();
-    append_SNAP();
+    decode();
     return 0;
 }
 
