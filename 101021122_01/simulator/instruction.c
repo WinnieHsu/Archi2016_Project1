@@ -18,7 +18,7 @@ void initialize(){
     fscanf(fin,"%s",SP);
     fscanf(fin,"%s",NUM);
 
-    int MEM_num=HEXtoDEC(NUM,8,9);
+    int MEM_num=char_HEXtoDEC(NUM,8,9);
     int i, j;
     for(i=0; i<MEM_num; i++){
         fscanf(fin,"%s",MEM[i][]);
@@ -128,16 +128,22 @@ void append_SNAP(){
         else{
             fprintf(fout,"0x");
             if(i>=2 && i<=3){ //return value v0~v1
-                for(j=0; j<8; j++)
-                    fprintf(fout,"%d",V[i-2][j]);
+                for(j=0; j<8; j++){
+                    if(V[i-2][j]>=10) fprintf(fout,"%c",DECtoHEX_bit(V[i-2][j]));
+                    else fprintf(fout,"%d",V[i-2][j]);
+                }
             }
             else if(i>=4 && i<=7){ //arguments a0~a3
-                for(j=0; j<8; j++)
-                    fprintf(fout,"%d",A[i-4][j]);
+                for(j=0; j<8; j++){
+                    if(A[i-4][j]>=10) fprintf(fout,"%c",DECtoHEX_bit(A[i-4][j]));
+                    else fprintf(fout,"%d",A[i-4][j]);
+                }
             }
             else if(i>=8&&i<=25){ //register t0~t7, s0~s7, t8~t9
-                for(j=0; j<8; j++)
-                    fprintf(fout,"%d",REG[i-8][j]);
+                for(j=0; j<8; j++){
+                    if(REG[i-8][j]>=10) fprintf(fout,"%c",DECtoHEX_bit(REG[i-8][j]));
+                    else fprintf(fout,"%d",REG[i-8][j]);
+                }
             }
             else fprintf(fout,"00000000");
         }
@@ -173,7 +179,7 @@ void decode(){
 
     fscanf(fin,"%s",PC);
     fscanf(fin,"%s",NUM);
-    int INSTR_num=HEXtoDEC(NUM,8,9);
+    int INSTR_num=char_HEXtoDEC(NUM,8,9);
 
     /**decode each instruction**/
     //while( fscanf(fin,"%s",&input)!=EOF ){ 不知道這樣寫行不行
@@ -470,8 +476,8 @@ void nand(int rs, int rt, int rd){
     }
 }
 void slt(int rs, int rt, int rd){
-    int rshex=HEXtoDEC(REG[rs-8],8,7);
-    int rthex=HEXtoDEC(REG[rt-8],8,7);
+    int rshex=int_HEXtoDEC(REG[rs-8],8,7);
+    int rthex=int_HEXtoDEC(REG[rt-8],8,7);
 
     int j;
     int result=(rshex<rthex)?1:0;
@@ -583,11 +589,47 @@ void halt(){
 
 /**I-type instructions**/
 void addi(int rs, int rt, int c){
-    REG[rt-8]->value = REG[rs-8]->value + REG[rt-8]->value;
+    int j=7, digit=c, chex[8];
+    //convert from decimal to hexadecimal
+    while(digit>0){
+        chex[j]=digit%16;
+        digit=digit/16;
+        j--;
+    }
+
+    int carry=0;
+    for(j=7; j>=0; j--){
+        if( REG[rs-8][j]+chex[j]+carry>15 ){
+            REG[rt-8][j]=REG[rs-8][j]+chex[j]+carry-16;
+            carry=1;
+        }
+        else{
+            REG[rt-8][j]=REG[rs-8][j]+chex[j]+carry;
+            carry=0;
+        }
+    }
     //error: overflow
 }
 void addiu(int rs, int rt, int c){
-    REG[rt-8]->value = REG[rs-8]->value + REG[rt-8]->value;
+    int j=7, digit=c, chex[8];
+    //convert from decimal to hexadecimal
+    while(digit>0){
+        chex[j]=digit%16;
+        digit=digit/16;
+        j--;
+    }
+
+    int carry=0;
+    for(j=7; j>=0; j--){
+        if( REG[rs-8][j]+chex[j]+carry>15 ){
+            REG[rt-8][j]=REG[rs-8][j]+chex[j]+carry-16;
+            carry=1;
+        }
+        else{
+            REG[rt-8][j]=REG[rs-8][j]+chex[j]+carry;
+            carry=0;
+        }
+    }
     //error: overflow
 }
 void lw(int rs, int rt, int c){
@@ -604,40 +646,97 @@ void sh(int rs, int rt, int c){}
 void sb(int rs, int rt, int c){}
 void lui(int rt, int c){}
 void andi(int rs, int rt, int c){
-    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
-    int rt_bit[32]=DECtoBIN(c,32);
-    int i;
-    for(i=0; i<32; i++){
-        rt_bit[i]=rs_bit[i]&rt_bit[i];
+    int j, k, digit;
+    int rsbin[32], cbin[32];
+    //convert from hexadecimal to binary
+    for(j=7; j>=0; j--){
+        digit=REG[rs-8][j];
+        k=(j+1)*4-1;
+        while(digit>0){
+            rsbin[k]=digit%2;
+            digit=digit/2;
+            k--;
+        }
     }
-    REG[rt-8]->value=BINtoDEC(rt_bit,32,31);
-    free(rs_bit);
-    free(rt_bit);
+    //convert from decimal to binary
+    digit=c; k=31;
+    while(digit>0){
+        cbin[k]=digit%2;
+        digit=digit/2;
+        k--;
+    }
+
+    for(j=31; j=0; j--)
+        rsbin[j]=rsbin[j]&cbin[j];
+    for(j=7; j>=0; j--) //convert back to hexadecimal
+        REG[rt-8][j]=BINtoDEC(rsbin,4,(j+1)*4-1);
 }
 void ori(int rs, int rt, int c){
-    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
-    int rt_bit[32]=DECtoBIN(c,32);
-    int i;
-    for(i=0; i<32; i++){
-        rt_bit[i]=rs_bit[i]|rt_bit[i];
+    int j, k, digit;
+    int rsbin[32], cbin[32];
+    //convert from hexadecimal to binary
+    for(j=7; j>=0; j--){
+        digit=REG[rs-8][j];
+        k=(j+1)*4-1;
+        while(digit>0){
+            rsbin[k]=digit%2;
+            digit=digit/2;
+            k--;
+        }
     }
-    REG[rt-8]->value=BINtoDEC(rt_bit,32,31);
-    free(rs_bit);
-    free(rt_bit);
+    //convert from decimal to binary
+    digit=c; k=31;
+    while(digit>0){
+        cbin[k]=digit%2;
+        digit=digit/2;
+        k--;
+    }
+
+    for(j=31; j=0; j--)
+        rsbin[j]=rsbin[j]|cbin[j];
+    for(j=7; j>=0; j--) //convert back to hexadecimal
+        REG[rt-8][j]=BINtoDEC(rsbin,4,(j+1)*4-1);
 }
 void nori(int rs, int rt, int c){
-    int rs_bit[32]=DECtoBIN(REG[rs-8]->value,32);
-    int rt_bit[32]=DECtoBIN(c,32);
-    int i;
-    for(i=0; i<32; i++){
-        rt_bit[i]=~(rs_bit[i]|rt_bit[i]);
+    int j, k, digit;
+    int rsbin[32], cbin[32];
+    //convert from hexadecimal to binary
+    for(j=7; j>=0; j--){
+        digit=REG[rs-8][j];
+        k=(j+1)*4-1;
+        while(digit>0){
+            rsbin[k]=digit%2;
+            digit=digit/2;
+            k--;
+        }
     }
-    REG[rt-8]->value=BINtoDEC(rt_bit,32,31);
-    free(rs_bit);
-    free(rt_bit);
+    //convert from decimal to binary
+    digit=c; k=31;
+    while(digit>0){
+        cbin[k]=digit%2;
+        digit=digit/2;
+        k--;
+    }
+
+    for(j=31; j=0; j--)
+        rsbin[j]=~(rsbin[j]|cbin[j]);
+    for(j=7; j>=0; j--) //convert back to hexadecimal
+        REG[rt-8][j]=BINtoDEC(rsbin,4,(j+1)*4-1);
 }
 void slti(int rs, int rt, int c){
-    REG[rt-8]=((REG[rs-8]->value)<c)?1:0;
+    int rshex=int_HEXtoDEC(REG[rs-8],8,7);
+
+    int j;
+    int result=(rshex<c)?1:0;
+    if(result){
+        for(j=7; j>=0; j--){
+            if(j==7) REG[rt-8][j]=1;
+            else REG[rt-8][j]=0;
+        }
+    }else{
+        for(j=7; j>=0; j--)
+            REG[rt-8][j]=0;
+    }
 }
 void beq(int rs, int rt, int c){
     if(REG[rs-8]==REG[rt-8]){
@@ -695,10 +794,21 @@ char DECtoHEX_bit(int n){
     else if(n==15) return 'F';
     else return n+'0';
 }
-int HEXtoDEC(int arr[], int n_bits, int start){
+int char_HEXtoDEC(char arr[], int n_bits, int start){
     int i, digit, term, number=0, base=1;
     for(i=start; i>(start-n_bits); i--){
         digit=HEXtoDEC_bit(arr[i]);
+        if(digit==0) term=0;
+        else term=digit*base;
+        number=number+term;
+        base=base*16;
+    }
+    return number;
+}
+int int_HEXtoDEC(int arr[], int n_bits, int start){
+    int i, digit, term, number=0, base=1;
+    for(i=start; i>(start-n_bits); i--){
+        digit=arr[i];
         if(digit==0) term=0;
         else term=digit*base;
         number=number+term;
@@ -714,6 +824,7 @@ int BINtoDEC(int arr[], int n_bits, int start){
     }
     return sum;
 }
+
 int flip(int n){
     return (n==0)?1:0;
 }
