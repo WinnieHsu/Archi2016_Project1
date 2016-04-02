@@ -190,61 +190,39 @@ void initialize(){
     }
 
     //store the number of MEM, INSTR
-    int NUM[34]={};
+    int NUM[34]={0};
     for(i=0; i<8; i++){
-        NUM[i]=dmemory[4][i];
-        NUM[i+8]=dmemory[5][i];
-        NUM[i+16]=dmemory[6][i];
-        NUM[i+24]=dmemory[7][i];
+        NUM[i]=dmemory[4][i]-'0';
+        NUM[i+8]=dmemory[5][i]-'0';
+        NUM[i+16]=dmemory[6][i]-'0';
+        NUM[i+24]=dmemory[7][i]-'0';
     }
     int MEM_num=BINtoDEC(NUM,32,31);
 
     for(i=0; i<8; i++){
-        INSTR[i]=imemory[4][i];
-        INSTR[i+8]=imemory[5][i];
-        INSTR[i+16]=imemory[6][i];
-        INSTR[i+24]=imemory[7][i];
+        NUM[i]=imemory[4][i]-'0';
+        NUM[i+8]=imemory[5][i]-'0';
+        NUM[i+16]=imemory[6][i]-'0';
+        NUM[i+24]=imemory[7][i]-'0';
     }
     int INSTR_num=BINtoDEC(NUM,32,31);
 }
 
-void decode(){
-    FILE *fout, *fout1;
-    char input[12];
-    int INSTR[34]={};
-
+void instruction_decode(){
+    FILE *fout;
     fout=fopen("error_dump.rpt","a"); //need to be deleted
-    if(fout==NULL) {
-        printf("Fail To Open File error_dump.rpt!!");
-        return;
-    }
-    /*fout1=fopen("out1.bin","w");
-    if(fout1==NULL) {
-        printf("Fail To Open File out1.bin!!");
-        return;
-    }*/
-
     initial_SNAP();
 
-
     /**decode each instruction**/
-    int i, j, k, digit;
+    int i, j, INSTR[34]={0};
     for(i=0; i<INSTR_num; i++){
-        fscanf(fin,"%s",input);
-        /**from hexadecimal input to binary INSTR**/
         for(j=0; j<32; j++) INSTR[j]=0;
-        for(j=9; j>=2; j--){
-            digit=HEXtoDEC_bit(input[j]);
-            k=(j-1)*4-1;
-            //printf("digit %d = INSTR[%d~%d] = ",digit,k-3,k);
-            while(digit>0){
-                INSTR[k]=digit%2;
-                digit=digit/2;
-                k--;
-            }
+        for(j=0; j<8; j++){
+            INSTR[i]=imemory[8+4*i][i]-'0';
+            INSTR[i+8]=imemory[9+4*i][i]-'0';
+            INSTR[i+16]=imemory[10+4*i][i]-'0';
+            INSTR[i+24]=imemory[11+4*i][i]-'0';
         }
-        //for(j=0; j<32; j++) fprintf(fout1,"%d",INSTR[j]);
-        //fprintf(fout1,"\n");
 
         /**analyze INSTR to OPcode, RS, RT, RD, etc.**/
         int OP=BINtoDEC(INSTR,6,5);
@@ -322,9 +300,7 @@ void decode(){
             break;
         }
     }
-    fclose(fin);
     fclose(fout);
-    //fclose(fout1);
 }
 
 /**R-type instructions**/

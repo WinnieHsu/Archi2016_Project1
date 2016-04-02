@@ -1,8 +1,12 @@
-#ifndef INSTRUCTION_H_INCLUDED
-#define INSTRUCTION_H_INCLUDED
+#ifndef SINGLE_CYCLE_H_INCLUDED
+#define SINGLE_CYCLE_H_INCLUDED
 
+void instruction_fetch();
+void store_dmemory(char ch);
+void store_imemory(char ch);
 void initialize();
-void decode();
+void instruction_decode();
+
 void initial_SNAP();
 void adderPC();
 void append_SNAP();
@@ -20,7 +24,7 @@ void slt(int, int, int);
 void sll(int, int, int);
 void srl(int, int, int);
 void sra(int, int, int);
-void jr(int, int, int);
+void jr(int);
 /**J-type instructions**/
 void jj(int);
 void jal(int);
@@ -51,4 +55,4 @@ int int_HEXtoDEC(int arr[], int n_bits, int start);
 int BINtoDEC(int arr[], int n_bits, int start);
 int flip(int n);
 
-#endif // INSTRUCTION_H_INCLUDED
+#endif // SINGLE_CYCLE_H_INCLUDED
