@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <ctype.h>
 #include "single_cycle.h"
 
 char A[4][34], V[2][34], REG[18][34]; //denote the value of register t0~t7, S0~s7, t7~t8
@@ -8,124 +7,110 @@ int im_index=0, dm_index=0;
 char PC[34], SP[34];
 int INSTR_num, MEM_num, MEM_value[34];
 
-int cycle;
+int cycle=0;
 int write$0_error=0, number_overflow=0, memory_overflow=0, misaligned=0;
 
 void initial_SNAP(){
-    cycle=0;
     FILE *fout;
     fout=fopen("snapshot.rpt","w");
-    if(fout==NULL) {
-        printf("Fail To Open File snapshot.rpt!!");
-        //fclose(fin);
-        return;
-    }
+
     int i, j;
+    char SP_hex[10]={}, PC_hex[10]={};
     fprintf(fout,"cycle 0\n");
     for(i=0; i<32; i++){
-        if(i<10) fprintf(fout,"$0%d: ",i);
-        else fprintf(fout,"$%d: ",i);
+        if(i<10) fprintf(fout,"$0%d: 0x",i);
+        else fprintf(fout,"$%d: 0x",i);
 
         if(i==29){
-            for(j=0; j<10; j++){
-                fprintf(fout,"%c",SP[j]);
+            //convert SP from binary to hexadecimal
+            for(j=7; j>=0; j--){
+                SP_hex[j] = DECtoHEX_bit( char_BINtoDEC(SP,4,(j+1)*4-1) );
+            }
+            for(j=0; j<8; j++){
+                fprintf(fout,"%c",SP_hex[j]);
             }
         }
-        else fprintf(fout,"0x00000000");
+        else fprintf(fout,"00000000");
         fprintf(fout,"\n");
     }
 
-    fprintf(fout,"PC: ");
-    for(j=0; j<10; j++){
-        fprintf(fout,"%c",PC[j]);
-    } fprintf(fout,"\n");
+    fprintf(fout,"PC: 0x");
+    //convert PC from binary to hexadecimal
+    for(j=7; j>=0; j--)
+        PC_hex[j] = DECtoHEX_bit( char_BINtoDEC(PC,4,(j+1)*4-1) );
+    for(j=0; j<8; j++)
+        fprintf(fout,"%c",PC_hex[j]);
+    fprintf(fout,"\n");
 
     fprintf(fout,"\n\n");
     fclose(fout);
 }
-void adderPC(){
-    int carry=0, index=9;
-    int digit=HEXtoDEC_bit(PC[index]);
-    digit=digit+4;
-    if(digit<16){
-        PC[index]=DECtoHEX_bit(digit);
-        carry=0;
-        return;
-    }
-    else{
-        PC[index]=DECtoHEX_bit(digit-16);
-        carry=1;
-        index--;
-        while(carry){
-            if(index<2){
-                printf("error: PC overflow\n");
-                break;
-            }
+void PC_adder(){
+    int carry=0, bitsum, j;
+    int add[34]={0}; add[29]=1;
 
-            digit=HEXtoDEC_bit(PC[index]);
-            digit=digit+carry;
-            if(digit<16){
-                PC[index]=DECtoHEX_bit(digit);
-                carry=0;
-            }
-            else{
-                PC[index]=DECtoHEX_bit(digit-16);
-                carry=1;
-                index--;
-            }
+    for(j=31; j>=0; j--){
+        bitsum=(PC[j]-'0')+add[j]+carry;
+        if(bitsum<2){
+            PC[j]=bitsum+'0';
+            carry=0;
+        }
+        else{
+            PC[j]=bitsum-2+'0';
+            carry=1;
         }
     }
 }
 void append_SNAP(){
     cycle++;
+    //PC_adder();
     FILE *fout;
     fout=fopen("snapshot.rpt","a");
-    if(fout==NULL) {
-        printf("Fail To Open File snapshot.rpt!!");
-        //fclose(fin);
-        return;
-    }
 
     int i, j;
+    char SP_hex[10]={}, V_hex[10]={}, A_hex[10]={}, REG_hex[10]={};
+
     fprintf(fout,"cycle %d\n",cycle);
     for(i=0; i<32; i++){
-        if(i<10) fprintf(fout,"$0%d: ",i);
-        else fprintf(fout,"$%d: ",i);
+        if(i<10) fprintf(fout,"$0%d: 0x",i);
+        else fprintf(fout,"$%d: 0x",i);
 
-        if(i==29){ //stack pointer SP
-            for(j=0; j<10; j++){
-                fprintf(fout,"%c",SP[j]);
-            }
+        if(i==29){
+            //convert SP from binary to hexadecimal
+            for(j=7; j>=0; j--)
+                SP_hex[j] = DECtoHEX_bit( char_BINtoDEC(SP,4,(j+1)*4-1) );
+            for(j=0; j<8; j++)
+                fprintf(fout,"%c",SP_hex[j]);
         }
-        else{
-            fprintf(fout,"0x");
-            if(i>=2 && i<=3){ //return value v0~v1
-                for(j=0; j<8; j++){
-                    if(V[i-2][j]>=10) fprintf(fout,"%c",DECtoHEX_bit(V[i-2][j]));
-                    else fprintf(fout,"%d",V[i-2][j]);
-                }
-            }
-            else if(i>=4 && i<=7){ //arguments a0~a3
-                for(j=0; j<8; j++){
-                    if(A[i-4][j]>=10) fprintf(fout,"%c",DECtoHEX_bit(A[i-4][j]));
-                    else fprintf(fout,"%d",A[i-4][j]);
-                }
-            }
-            else if(i>=8&&i<=25){ //register t0~t7, s0~s7, t8~t9
-                for(j=0; j<8; j++){
-                    if(REG[i-8][j]>=10) fprintf(fout,"%c",DECtoHEX_bit(REG[i-8][j]));
-                    else fprintf(fout,"%d",REG[i-8][j]);
-                }
-            }
-            else fprintf(fout,"00000000");
+        else if(i>=2 && i<=3){ //return value v0~v1
+            for(j=7; j>=0; j--)
+                V_hex[j] = DECtoHEX_bit( char_BINtoDEC(V[i-2],4,(j+1)*4-1) );
+            for(j=0; j<8; j++)
+                fprintf(fout,"%c",V_hex[j]);
         }
+        else if(i>=4 && i<=7){ //arguments a0~a3
+            for(j=7; j>=0; j--)
+                A_hex[j] = DECtoHEX_bit( char_BINtoDEC(A[i-4],4,(j+1)*4-1) );
+            for(j=0; j<8; j++)
+                fprintf(fout,"%c",A_hex[j]);
+        }
+        else if(i>=8&&i<=25){ //register t0~t7, s0~s7, t8~t9
+            for(j=7; j>=0; j--)
+                REG_hex[j] = DECtoHEX_bit( char_BINtoDEC(REG[i-8],4,(j+1)*4-1) );
+            for(j=0; j<8; j++)
+                fprintf(fout,"%c",REG_hex[j]);
+        }
+        else fprintf(fout,"00000000");
         fprintf(fout,"\n");
     }
 
-    fprintf(fout,"PC: ");
-    for(j=0; j<10; j++){
-        fprintf(fout,"%c",PC[j]);
-    } fprintf(fout,"\n");
+    fprintf(fout,"PC: 0x");
+    //convert PC from binary to hexadecimal
+    for(j=7; j>=0; j--)
+        PC_hex[j] = DECtoHEX_bit( char_BINtoDEC(PC,4,(j+1)*4-1) );
+    for(j=0; j<8; j++)
+        fprintf(fout,"%c",PC_hex[j]);
+    fprintf(fout,"\n");
 
     fprintf(fout,"\n\n");
     fclose(fout);
@@ -155,7 +140,6 @@ void store_dmemory(char ch){
     } //printf("\n");
     dm_index++;
 }
-
 void instruction_fetch(){
     char ch;
     FILE *fin;
@@ -197,7 +181,7 @@ void initialize(){
         NUM[i+16]=dmemory[6][i]-'0';
         NUM[i+24]=dmemory[7][i]-'0';
     }
-    int MEM_num=BINtoDEC(NUM,32,31);
+    int MEM_num=int_BINtoDEC(NUM,32,31);
 
     for(i=0; i<8; i++){
         NUM[i]=imemory[4][i]-'0';
@@ -205,12 +189,12 @@ void initialize(){
         NUM[i+16]=imemory[6][i]-'0';
         NUM[i+24]=imemory[7][i]-'0';
     }
-    int INSTR_num=BINtoDEC(NUM,32,31);
+    int INSTR_num=int_BINtoDEC(NUM,32,31);
 }
 
 void instruction_decode(){
     FILE *fout;
-    fout=fopen("error_dump.rpt","a"); //need to be deleted
+    fout=fopen("error_dump.rpt","a");
     initial_SNAP();
 
     /**decode each instruction**/
@@ -225,13 +209,13 @@ void instruction_decode(){
         }
 
         /**analyze INSTR to OPcode, RS, RT, RD, etc.**/
-        int OP=BINtoDEC(INSTR,6,5);
+        int OP=int_BINtoDEC(INSTR,6,5);
         if(OP==0){
-            int FUNCT=BINtoDEC(INSTR,6,31);
-            int RS=BINtoDEC(INSTR,5,10);
-            int RT=BINtoDEC(INSTR,5,15);
-            int RD=BINtoDEC(INSTR,5,20);
-            int SHAMT=BINtoDEC(INSTR,5,25);
+            int FUNCT=int_BINtoDEC(INSTR,6,31);
+            int RS=int_BINtoDEC(INSTR,5,10);
+            int RT=int_BINtoDEC(INSTR,5,15);
+            int RD=int_BINtoDEC(INSTR,5,20);
+            int SHAMT=int_BINtoDEC(INSTR,5,25);
 
             if(FUNCT==32) add(RS,RT,RD);
             else if(FUNCT==33) addu(RS,RT,RD);
@@ -249,16 +233,16 @@ void instruction_decode(){
             else printf("this is error R-instruction\n");
         }
         else if(OP==2||OP==3||OP==63){
-            int C=BINtoDEC(INSTR,26,31);
+            int C=int_BINtoDEC(INSTR,26,31);
             if(OP==2) jj(C);
             else if(OP==3) jal(C);
             else if(OP==63) break;
             else printf("this is error J-instruction\n");
         }
         else{
-            int RS=BINtoDEC(INSTR,5,10);
-            int RT=BINtoDEC(INSTR,5,15);
-            int C=BINtoDEC(INSTR,16,31);
+            int RS=int_BINtoDEC(INSTR,5,10);
+            int RT=int_BINtoDEC(INSTR,5,15);
+            int C=int_BINtoDEC(INSTR,16,31);
 
             if(OP==8) addi(RS,RT,C);
             else if(OP==9) addiu(RS,RT,C);
@@ -309,96 +293,46 @@ void add(int rs, int rt, int rd){
         write$0_error=1;
         return;
     }
-    int j, k, digit, carry=0;
-    int rsbin[32], rtbin[32];
-    for(j=0; j<32; j++){
-        rsbin[j]=0;
-        rtbin[j]=0;
-    }
-    //convert from hexadecimal to binary
-    for(j=7; j>=0; j--){
-        digit=REG[rs-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rsbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=7; j>=0; j--){
-        digit=REG[rt-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rtbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
+    int j, carry=0, bitsum;
 
-    int same=(rsbin[0]==rtbin[0])?1:0;
-    int same_bit;
-    if(same) same_bit=rsbin[0];
-    for(j=32; j>=0; j--){
-        if( rsbin[j]+rtbin[j]+carry>1 ){
-            rtbin[j]=rsbin[j]+rtbin[j]+carry-2;
-            carry=1;
-        }
-        else{
-            rtbin[j]=rsbin[j]+rtbin[j]+carry;
+    int same=(REG[rs-8][0]==REG[rt-8][0])?1:0;
+    if(same) char same_bit=REG[rs-8][0];
+    for(j=31; j>=0; j--){
+        bitsum=(REG[rs-8][j]-'0')+(REG[rt-8][j]-'0')+carry;
+        if(bitsum<2){
+            REG[rd-8][j]=bitsum+'0';
             carry=0;
         }
+        else{
+            REG[rd-8][j]=bitsum-2+'0';
+            carry=1;
+        }
     }
-    if(same&& (rtbin[0]!=same_bit)){
+    if(same&& (REG[rd-8][0]!=same_bit)){
         number_overflow=1;
         adderPC();
         return;
     }
-    for(j=7; j>=0; j--) //convert back to hexadecimal
-        REG[rd-8][j]=BINtoDEC(rtbin,4,(j+1)*4-1);
-    adderPC();
+    else adderPC();
 }
 void addu(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
         return;
     }
-    int j, k, digit, carry=0;
-    int rsbin[32], rtbin[32];
-    for(j=0; j<32; j++){
-        rsbin[j]=0;
-        rtbin[j]=0;
-    }
-    //convert from hexadecimal to binary
-    for(j=7; j>=0; j--){
-        digit=REG[rs-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rsbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=7; j>=0; j--){
-        digit=REG[rt-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rtbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=32; j>=0; j--){
-        if( rsbin[j]+rtbin[j]+carry>1 ){
-            rtbin[j]=rsbin[j]+rtbin[j]+carry-2;
-            carry=1;
-        }
-        else{
-            rtbin[j]=rsbin[j]+rtbin[j]+carry;
+    int j, carry=0, bitsum;
+
+    for(j=31; j>=0; j--){
+        bitsum=(REG[rs-8][j]-'0')+(REG[rt-8][j]-'0')+carry;
+        if(bitsum<2){
+            REG[rd-8][j]=bitsum+'0';
             carry=0;
         }
+        else{
+            REG[rd-8][j]=bitsum-2+'0';
+            carry=1;
+        }
     }
-    for(j=7; j>=0; j--) //convert back to hexadecimal
-        REG[rd-8][j]=BINtoDEC(rtbin,4,(j+1)*4-1);
     adderPC();
 }
 void sub(int rs, int rt, int rd){
@@ -406,91 +340,56 @@ void sub(int rs, int rt, int rd){
         write$0_error=1;
         return;
     }
-    int j, k, digit, carry=1;
-    int rsbin[32], complement[32], rdbin[32];
-    //convert from hexadecimal to binary
-    for(j=7; j>=0; j--){
-        digit=REG[rs-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rsbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=7; j>=0; j--){
-        digit=REG[rt-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            complement[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=7; j>=0; j--)
-        complement[j]=flip(complement[j]); //1's complement
-
-    int same=(rsbin[0]==complement[0])?1:0;
+    int j, carry=1, bitsum;
+    int complement[32]={0};
+    for(j=31; j>=0; j--) complement[j]=flip( REG[rt-8][j]-'0' );
     for(j=31; j>=0; j--){
-        if( rsbin[j]+complement[j]+carry>1 ){
-            rdbin[j]=rsbin[j]+complement[j]+carry-2;
-            carry=1;
-        }
-        else{
-            rdbin[j]=rsbin[j]+complement[j]+carry;
+        bitsum=complement[j]+carry;
+        if(bitsum<2){
+            complement[j]=bitsum;
             carry=0;
         }
+        else{
+            complement[j]=bitsum-2;
+            carry=1;
+        }
     }
-    if(same&& (rdbin[0]!=rsbin[0])){
+
+    int same=( (REG[rs-8][0]-'0')==complement[0] ) ? 1:0;
+    if(same) char same_bit=REG[rs-8][0];
+    carry=0;
+    for(j=31; j>=0; j--){
+        bitsum=(REG[rs-8][j]-'0')+complement[j]+carry;
+        if(bitsum<2){
+            REG[rd-8][j]=bitsum+'0';
+            carry=0;
+        }
+        else{
+            REG[rd-8][j]=bitsum-2+'0';
+            carry=1;
+        }
+    }
+    if(same&& (REG[rd-8][0]!=same_bit)){
         number_overflow=1;
         adderPC();
         return;
     }
-    for(j=7; j>=0; j--) //convert back to hexadecimal
-        REG[rd-8][j]=BINtoDEC(rdbin,4,(j+1)*4-1);
-    adderPC();
+    else adderPC();
 }
 void and(int rs, int rt, int rd){
     if(rd==0){
         write$0_error=1;
         return;
     }
-    int j, k, digit;
+
+    int j, bitsum;
     if(rs==0 || rt==0){
-        for(j=0; j<8; j++)
-            REG[rd-8][j]=0;
+        for(j=0; j<32; j++) REG[rd-8][j]=0;
         return;
     }
-
-    int rsbin[32], rtbin[32];
-    for(j=0; j<32; j++){
-        rsbin[j]=0;
-        rtbin[j]=0;
-    }
-    //convert from hexadecimal to binary
-    for(j=7; j>=0; j--){
-        digit=REG[rs-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rsbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=7; j>=0; j--){
-        digit=REG[rt-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rtbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=31; j=0; j--){
-        rsbin[j]=rsbin[j]&rtbin[j];
-    }
-    for(j=7; j>=0; j--){ //convert back to hexadecimal
-        REG[rd-8][j]=BINtoDEC(rsbin,4,(j+1)*4-1);
+    for(j=31; j>=0; j--){
+        bitsum=(REG[rs-8][j]-'0')&(REG[rt-8][j]-'0');
+        REG[rd-8][j]=bitsum+'0';
     }
     adderPC();
 }
@@ -499,36 +398,10 @@ void or(int rs, int rt, int rd){
         write$0_error=1;
         return;
     }
-    int j, k, digit;
-    int rsbin[32], rtbin[32];
-    for(j=0; j<32; j++){
-        rsbin[j]=0;
-        rtbin[j]=0;
-    }
-    //convert from hexadecimal to binary
-    for(j=7; j>=0; j--){
-        digit=REG[rs-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rsbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=7; j>=0; j--){
-        digit=REG[rt-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rtbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=31; j=0; j--){
-        rsbin[j]=rsbin[j]|rtbin[j];
-    }
-    for(j=7; j>=0; j--){ //convert back to hexadecimal
-        REG[rd-8][j]=BINtoDEC(rsbin,4,(j+1)*4-1);
+
+    for(j=31; j>=0; j--){
+        bitsum=(REG[rs-8][j]-'0')|(REG[rt-8][j]-'0');
+        REG[rd-8][j]=bitsum+'0';
     }
     adderPC();
 }
@@ -537,36 +410,10 @@ void xor(int rs, int rt, int rd){
         write$0_error=1;
         return;
     }
-    int j, k, digit;
-    int rsbin[32], rtbin[32];
-    for(j=0; j<32; j++){
-        rsbin[j]=0;
-        rtbin[j]=0;
-    }
-    //convert from hexadecimal to binary
-    for(j=7; j>=0; j--){
-        digit=REG[rs-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rsbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=7; j>=0; j--){
-        digit=REG[rt-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rtbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=31; j=0; j--){
-        rsbin[j]=rsbin[j]^rtbin[j];
-    }
-    for(j=7; j>=0; j--){ //convert back to hexadecimal
-        REG[rd-8][j]=BINtoDEC(rsbin,4,(j+1)*4-1);
+
+    for(j=31; j>=0; j--){
+        bitsum=(REG[rs-8][j]-'0')^(REG[rt-8][j]-'0');
+        REG[rd-8][j]=bitsum+'0';
     }
     adderPC();
 }
@@ -575,36 +422,10 @@ void nor(int rs, int rt, int rd){
         write$0_error=1;
         return;
     }
-    int j, k, digit;
-    int rsbin[32], rtbin[32];
-    for(j=0; j<32; j++){
-        rsbin[j]=0;
-        rtbin[j]=0;
-    }
-    //convert from hexadecimal to binary
-    for(j=7; j>=0; j--){
-        digit=REG[rs-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rsbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=7; j>=0; j--){
-        digit=REG[rt-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rtbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=31; j=0; j--){
-        rsbin[j]=~(rsbin[j]|rtbin[j]);
-    }
-    for(j=7; j>=0; j--){ //convert back to hexadecimal
-        REG[rd-8][j]=BINtoDEC(rsbin,4,(j+1)*4-1);
+
+    for(j=31; j>=0; j--){
+        bitsum=~((REG[rs-8][j]-'0')|(REG[rt-8][j]-'0'));
+        REG[rd-8][j]=bitsum+'0';
     }
     adderPC();
 }
@@ -613,36 +434,10 @@ void nand(int rs, int rt, int rd){
         write$0_error=1;
         return;
     }
-    int j, k, digit;
-    int rsbin[32], rtbin[32];
-    for(j=0; j<32; j++){
-        rsbin[j]=0;
-        rtbin[j]=0;
-    }
-    //convert from hexadecimal to binary
-    for(j=7; j>=0; j--){
-        digit=REG[rs-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rsbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=7; j>=0; j--){
-        digit=REG[rt-8][j];
-        k=(j+1)*4-1;
-        while(digit>0){
-            rtbin[k]=digit%2;
-            digit=digit/2;
-            k--;
-        }
-    }
-    for(j=31; j=0; j--){
-        rsbin[j]=~(rsbin[j]&rtbin[j]);
-    }
-    for(j=7; j>=0; j--){ //convert back to hexadecimal
-        REG[rd-8][j]=BINtoDEC(rsbin,4,(j+1)*4-1);
+
+    for(j=31; j>=0; j--){
+        bitsum=~((REG[rs-8][j]-'0')&(REG[rt-8][j]-'0'));
+        REG[rd-8][j]=bitsum+'0';
     }
     adderPC();
 }
@@ -1125,14 +920,15 @@ void bgtz(int rs, int c){
 /////////////////////////////////////////////
 
 int main(){
-    int i;
+    instruction_fetch();
     initialize();
-    decode();
+    instruction_decode();
     return 0;
 }
 
 /////////////////////////////////////////////
-int HEXtoDEC_bit(char c){
+
+/*int HEXtoDEC_bit(char c){
     if(c=='A') return 10;
     else if(c=='B') return 11;
     else if(c=='C') return 12;
@@ -1140,7 +936,7 @@ int HEXtoDEC_bit(char c){
     else if(c=='E') return 14;
     else if(c=='F') return 15;
     else return c-'0';
-}
+}*/
 char DECtoHEX_bit(int n){
     if(n==10) return 'A';
     else if(n==11) return 'B';
@@ -1150,7 +946,7 @@ char DECtoHEX_bit(int n){
     else if(n==15) return 'F';
     else return n+'0';
 }
-int char_HEXtoDEC(char arr[], int n_bits, int start){
+/*int char_HEXtoDEC(char arr[], int n_bits, int start){
     int i, digit, term, number=0, base=1;
     for(i=start; i>(start-n_bits); i--){
         digit=HEXtoDEC_bit(arr[i]);
@@ -1171,8 +967,16 @@ int int_HEXtoDEC(int arr[], int n_bits, int start){
         base=base*16;
     }
     return number;
+}*/
+int char_BINtoDEC(char arr[], int n_bits, int start){
+    int sum=0, base=1, i;
+    for(i=start; i>(start-n_bits); i--){
+        sum=sum+(arr[i]-'0')*base;
+        base=base*2;
+    }
+    return sum;
 }
-int BINtoDEC(int arr[], int n_bits, int start){
+int int_BINtoDEC(int arr[], int n_bits, int start){
     int sum=0, base=1, i;
     for(i=start; i>(start-n_bits); i--){
         sum=sum+arr[i]*base;

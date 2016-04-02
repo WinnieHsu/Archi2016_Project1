@@ -8,7 +8,7 @@ void initialize();
 void instruction_decode();
 
 void initial_SNAP();
-void adderPC();
+void PC_adder();
 void append_SNAP();
 
 /**R-type instructions**/
@@ -48,11 +48,12 @@ void beq(int, int, int);
 void bne(int, int, int);
 void bgtz(int, int);
 
-int HEXtoDEC_bit(char c);
+//int HEXtoDEC_bit(char c);
 char DECtoHEX_bit(int n);
-int char_HEXtoDEC(char arr[], int n_bits, int start);
-int int_HEXtoDEC(int arr[], int n_bits, int start);
-int BINtoDEC(int arr[], int n_bits, int start);
+//int char_HEXtoDEC(char arr[], int n_bits, int start);
+//int int_HEXtoDEC(int arr[], int n_bits, int start);
+int char_BINtoDEC(char arr[], int n_bits, int start);
+int int_BINtoDEC(int arr[], int n_bits, int start);
 int flip(int n);
 
 #endif // SINGLE_CYCLE_H_INCLUDED
