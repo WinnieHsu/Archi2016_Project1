@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "single_cycle.h"
 
-char REG[32][34]={}; //denote the value of register $zero, at, v0~v1, a0~a3, t0~t7, s0~s7, t7~t8, k0~k1, gp, sp, fp, ra
+char REG[33][34]={}; //denote the value of register $zero, at, v0~v1, a0~a3, t0~t7, s0~s7, t7~t8, k0~k1, gp, sp, fp, ra
 char im_input[4096][10]={}, dm_input[4096][10]={};
 char PC[1024][34]={}, dmemory[1024][34]={};
 int im_index=0, dm_index=0, PC_index=0;
@@ -152,10 +152,15 @@ void instruction_fetch(){
 
 void initialize(){
     int i,j;
-    //initialize REG
-    for(i=0; i<32; i++){
+    //initialize REG, dmemory
+    for(i=0; i<33; i++){
         for(j=0; j<34; j++){
             REG[i][j]='0';
+        }
+    }
+    for(i=0; i<1024; i++){
+        for(j=0; j<34; j++){
+            dmemory[i][j]='0';
         }
     }
 
@@ -256,25 +261,26 @@ void instruction_decode(){
             int RS=int_BINtoDEC(INSTR,5,10);
             int RT=int_BINtoDEC(INSTR,5,15);
             int C=int_BINtoDEC(INSTR,16,31);
+            int signedC=signed_int_BINtoDEC(INSTR,16,31);
 
             if(OP==8) addi(RS,RT,C);
             else if(OP==9) addiu(RS,RT,C);
-            else if(OP==35) lw(RS,RT,C);
-            else if(OP==33) lh(RS,RT,C);
+            else if(OP==35) lw(RS,RT,signedC);
+            else if(OP==33) lh(RS,RT,signedC);
             else if(OP==37) lhu(RS,RT,C);
-            else if(OP==32) lb(RS,RT,C);
+            else if(OP==32) lb(RS,RT,signedC);
             else if(OP==36) lbu(RS,RT,C);
-            else if(OP==43) sw(RS,RT,C);
-            else if(OP==41) sh(RS,RT,C);
-            else if(OP==40) sb(RS,RT,C);
+            else if(OP==43) sw(RS,RT,signedC);
+            else if(OP==41) sh(RS,RT,signedC);
+            else if(OP==40) sb(RS,RT,signedC);
             else if(OP==15) lui(RT,C);
             else if(OP==12) andi(RS,RT,C);
             else if(OP==13) ori(RS,RT,C);
             else if(OP==14) nori(RS,RT,C);
             else if(OP==10) slti(RS,RT,C);
-            else if(OP==4) beq(RS,RT,C);
-            else if(OP==5) bne(RS,RT,C);
-            else if(OP==7) bgtz(RS,C);
+            else if(OP==4) beq(RS,RT,signedC);
+            else if(OP==5) bne(RS,RT,signedC);
+            else if(OP==7) bgtz(RS,signedC);
             else printf("this is I-error instruction\n");
         }
         append_SNAP();
@@ -624,11 +630,27 @@ void addiu(int rs, int rt, int c){
     PC_adder();
 }
 void lw(int rs, int rt, int c){
-    if(rt==0){
-        write$0_error=1;
-        return;
+    if(rt==0) write$0_error=1;
+
+    int result = char_BINtoDEC(REG[rs],32,31) + c;
+    if(char_BINtoDEC(REG[rs],32,31)>0 && c>0 && result<0)
+        number_overflow=1;
+    if(result>1023 || result<0 || result+1>1023 || result+2>1023 || result+3>1023)
+        memory_overflow=1;
+
+    int check = (REG[rs][31]-'0')+(REG[rs][30]-'0')*2+c;
+    if(check%4!=0)
+        misaligned=1;
+
+    if(write$0_error==1 || memory_overflow==1 || misaligned==1) return;
+
+    int i;
+    for(i=0; i<8; i++){
+        REG[rt][i]=dmemory[][i];
+        REG[rt][i+8]=dmemory[][i];
+        REG[rt][i+16]=dmemory[][i];
+        REG[rt][i+24]=dmemory[][i];
     }
-    //REG[rt-8] = MEM[rs+c] //改成address=rs+c的MEM的value才對
     PC_adder();
 }
 void lh(int rs, int rt, int c){
@@ -906,6 +928,18 @@ int int_BINtoDEC(int arr[], int n_bits, int start){
     for(i=start; i>(start-n_bits); i--){
         sum=sum+arr[i]*base;
         base=base*2;
+    }
+    return sum;
+}
+int signed_int_BINtoDEC(int arr[], int n_bits, int start){
+    int sum=0, base=1, i;
+    for(i=start; i>(start-n_bits); i--){
+        if(i==start-n_bits+1)
+            sum=sum-arr[i]*base;
+        else{
+            sum=sum+arr[i]*base;
+            base=base*2;
+        }
     }
     return sum;
 }
