@@ -53,7 +53,9 @@ char DECtoHEX_bit(int n);
 //int char_HEXtoDEC(char arr[], int n_bits, int start);
 //int int_HEXtoDEC(int arr[], int n_bits, int start);
 int char_BINtoDEC(char arr[], int n_bits, int start);
+int signed_char_BINtoDEC(char arr[], int n_bits, int start);
 int int_BINtoDEC(int arr[], int n_bits, int start);
+int signed_int_BINtoDEC(int arr[], int n_bits, int start);
 int flip(int n);
 
 #endif // SINGLE_CYCLE_H_INCLUDED
