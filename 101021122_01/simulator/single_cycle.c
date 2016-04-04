@@ -3,23 +3,27 @@
 
 char REG[33][34]={}; //denote the value of register $zero, at, v0~v1, a0~a3, t0~t7, s0~s7, t7~t8, k0~k1, gp, sp, fp, ra
 char im_input[4096][10]={}, dm_input[4096][10]={};
-char PC[1024][34]={}, dmemory[1024][34]={};
+char PC_init[34]={}, PC_now[34]={}, dmemory[1024][34]={};
+int PC_initptr=0, PC_nowptr=0;
 int im_index=0, dm_index=0, PC_index=0;
 
 int INSTR_num=0, MEM_num=0;
 int cycle=0;
 int write$0_error=0, number_overflow=0, memory_overflow=0, misaligned=0;
 
+FILE *snap, *error;
+
+int test=1; //whether to printf
+
 void initial_SNAP(){
-    FILE *fout;
-    fout=fopen("snapshot.rpt","w");
+    snap=fopen("snapshot.rpt","w");
 
     int i, j;
     char SP_hex[10]={}, PC_hex[10]={};
-    fprintf(fout,"cycle 0\n");
+    fprintf(snap,"cycle 0\n");
     for(i=0; i<32; i++){
-        if(i<10) fprintf(fout,"$0%d: 0x",i);
-        else fprintf(fout,"$%d: 0x",i);
+        if(i<10) fprintf(snap,"$0%d: 0x",i);
+        else fprintf(snap,"$%d: 0x",i);
 
         if(i==29){
             //convert SP from binary to hexadecimal
@@ -27,47 +31,44 @@ void initial_SNAP(){
                 SP_hex[j] = DECtoHEX_bit( char_BINtoDEC(REG[29],4,(j+1)*4-1) );
             }
             for(j=0; j<8; j++){
-                fprintf(fout,"%c",SP_hex[j]);
+                fprintf(snap,"%c",SP_hex[j]);
             }
         }
-        else fprintf(fout,"00000000");
-        fprintf(fout,"\n");
+        else fprintf(snap,"00000000");
+        fprintf(snap,"\n");
     }
 
-    fprintf(fout,"PC: 0x");
+    fprintf(snap,"PC: 0x");
     //convert PC from binary to hexadecimal
     for(j=7; j>=0; j--)
-        PC_hex[j] = DECtoHEX_bit( char_BINtoDEC(PC[0],4,(j+1)*4-1) );
+        PC_hex[j] = DECtoHEX_bit( char_BINtoDEC(PC_init,4,(j+1)*4-1) );
     for(j=0; j<8; j++)
-        fprintf(fout,"%c",PC_hex[j]);
-    fprintf(fout,"\n");
+        fprintf(snap,"%c",PC_hex[j]);
 
-    fprintf(fout,"\n\n");
-    fclose(fout);
-    cycle++;
+    fprintf(snap,"\n\n\n");
 }
 void PC_adder(){
     int carry=0, bitsum, j=29;
     int add[34]={0}; add[29]=1;
 
-    bitsum=(PC[PC_index-1][j]-'0')+add[j]+carry;
+    bitsum=(PC_now[j]-'0')+add[j]+carry;
     if(bitsum<2){
-        PC[PC_index][j]=bitsum+'0';
+        PC_now[j]=bitsum+'0';
         carry=0;
     }
     else{
-        PC[PC_index][j]=bitsum-2+'0';
+        PC_now[j]=bitsum-2+'0';
         carry=1;
         j--;
         while(carry && j>=0){
-            bitsum=(PC[PC_index-1][j]-'0')+add[j]+carry;
+            bitsum=(PC_now[j]-'0')+add[j]+carry;
             if(bitsum<2){
-                PC[PC_index][j]=bitsum+'0';
+                PC_now[j]=bitsum+'0';
                 carry=0;
                 break;
             }
             else{
-                PC[PC_index][j]=bitsum-2+'0';
+                PC_now[j]=bitsum-2+'0';
                 carry=1;
                 j--;
             }
@@ -75,38 +76,34 @@ void PC_adder(){
     }
 }
 void append_SNAP(){
+    cycle++;
     //PC_adder();
-    FILE *fout;
-    fout=fopen("snapshot.rpt","a");
+    snap=fopen("snapshot.rpt","a");
 
     int i, j;
     char REG_hex[10]={}, PC_hex[10]={};
 
-    fprintf(fout,"cycle %d\n",cycle);
+    fprintf(snap,"cycle %d\n",cycle);
     for(i=0; i<32; i++){
-        if(i<10) fprintf(fout,"$0%d: 0x",i);
-        else fprintf(fout,"$%d: 0x",i);
+        if(i<10) fprintf(snap,"$0%d: 0x",i);
+        else fprintf(snap,"$%d: 0x",i);
 
         for(j=7; j>=0; j--)
             REG_hex[j] = DECtoHEX_bit( char_BINtoDEC(REG[i],4,(j+1)*4-1) );
         for(j=0; j<8; j++)
-            fprintf(fout,"%c",REG_hex[j]);
+            fprintf(snap,"%c",REG_hex[j]);
 
-        //else fprintf(fout,"00000000");
-        fprintf(fout,"\n");
+        fprintf(snap,"\n");
     }
 
-    fprintf(fout,"PC: 0x");
+    fprintf(snap,"PC: 0x");
     //convert PC from binary to hexadecimal
     for(j=7; j>=0; j--)
-        PC_hex[j] = DECtoHEX_bit( char_BINtoDEC(PC[PC_index],4,(j+1)*4-1) );
+        PC_hex[j] = DECtoHEX_bit( char_BINtoDEC(PC_now,4,(j+1)*4-1) );
     for(j=0; j<8; j++)
-        fprintf(fout,"%c",PC_hex[j]);
-    fprintf(fout,"\n");
+        fprintf(snap,"%c",PC_hex[j]);
 
-    fprintf(fout,"\n\n");
-    fclose(fout);
-    cycle++;
+    fprintf(snap,"\n\n\n");
 }
 
 void store_imemory(char ch){
@@ -166,10 +163,18 @@ void initialize(){
 
     //store the value of PC, SP
     for(i=0; i<8; i++){
-        PC[0][i]=im_input[0][i];
-        PC[0][i+8]=im_input[1][i];
-        PC[0][i+16]=im_input[2][i];
-        PC[0][i+24]=im_input[3][i];
+        PC_init[i]=im_input[0][i];
+        PC_init[i+8]=im_input[1][i];
+        PC_init[i+16]=im_input[2][i];
+        PC_init[i+24]=im_input[3][i];
+
+        PC_now[i]=im_input[0][i];
+        PC_now[i+8]=im_input[1][i];
+        PC_now[i+16]=im_input[2][i];
+        PC_now[i+24]=im_input[3][i];
+
+        PC_initptr=char_BINtoDEC(PC_init, 32, 31);
+        PC_nowptr=PC_initptr;
     }
     for(i=0; i<8; i++){ //SP
         REG[29][i]=dm_input[0][i];
@@ -208,8 +213,7 @@ void initialize(){
 }
 
 void instruction_decode(){
-    FILE *fout;
-    fout=fopen("error_dump.rpt","a");
+    error=fopen("error_dump.rpt","a");
     initial_SNAP();
 
     /**decode each instruction**/
@@ -235,27 +239,76 @@ void instruction_decode(){
             int RD=int_BINtoDEC(INSTR,5,20);
             int SHAMT=int_BINtoDEC(INSTR,5,25);
 
-            if(FUNCT==32) add(RS,RT,RD);
-            else if(FUNCT==33) addu(RS,RT,RD);
-            else if(FUNCT==34) sub(RS,RT,RD);
-            else if(FUNCT==36) and(RS,RT,RD);
-            else if(FUNCT==37) or(RS,RT,RD);
-            else if(FUNCT==38) xor(RS,RT,RD);
-            else if(FUNCT==39) nor(RS,RT,RD);
-            else if(FUNCT==40) nand(RS,RT,RD);
-            else if(FUNCT==42) slt(RS,RT,RD);
-            else if(FUNCT==0) sll(RT,RD,SHAMT);
-            else if(FUNCT==2) srl(RT,RD,SHAMT);
-            else if(FUNCT==3) sra(RT,RD,SHAMT);
-            else if(FUNCT==8) jr(RS);
-            else printf("this is error R-instruction\n");
+            if(FUNCT==32){
+                add(RS,RT,RD);
+                if(test==1) printf("this R-type add(%d,%d,%d)\n",RS,RT,RD);
+            }
+            else if(FUNCT==33){
+                addu(RS,RT,RD);
+                if(test==1) printf("this R-type addu(%d,%d,%d)\n",RS,RT,RD);
+            }
+            else if(FUNCT==34){
+                sub(RS,RT,RD);
+                if(test==1) printf("this R-type sub(%d,%d,%d)\n",RS,RT,RD);
+            }
+            else if(FUNCT==36){
+                and(RS,RT,RD);
+                if(test==1) printf("this R-type and(%d,%d,%d)\n",RS,RT,RD);
+            }
+            else if(FUNCT==37){
+                or(RS,RT,RD);
+                if(test==1) printf("this R-type or(%d,%d,%d)\n",RS,RT,RD);
+            }
+            else if(FUNCT==38){
+                xor(RS,RT,RD);
+                if(test==1) printf("this R-type xor(%d,%d,%d)\n",RS,RT,RD);
+            }
+            else if(FUNCT==39){
+                nor(RS,RT,RD);
+                if(test==1) printf("this R-type nor(%d,%d,%d)\n",RS,RT,RD);
+            }
+            else if(FUNCT==40){
+                nand(RS,RT,RD);
+                if(test==1) printf("this R-type nand(%d,%d,%d)\n",RS,RT,RD);
+            }
+            else if(FUNCT==42){
+                slt(RS,RT,RD);
+                if(test==1) printf("this R-type slt(%d,%d,%d)\n",RS,RT,RD);
+            }
+            else if(FUNCT==0){
+                sll(RT,RD,SHAMT);
+                if(test==1) printf("this R-type sll(%d,%d,%d)\n",RT,RD,SHAMT);
+            }
+            else if(FUNCT==2){
+                srl(RT,RD,SHAMT);
+                if(test==1) printf("this R-type srl(%d,%d,%d)\n",RT,RD,SHAMT);
+            }
+            else if(FUNCT==3){
+                sra(RT,RD,SHAMT);
+                if(test==1) printf("this R-type sra(%d,%d,%d)\n",RT,RD,SHAMT);
+            }
+            else if(FUNCT==8){
+                jr(RS);
+                if(test==1) printf("this R-type jr(%d)\n",RS);
+            }
+            else{
+                if(test==1) printf("this is error R-instruction\n");
+            }
         }
         else if(OP==2||OP==3||OP==63){
             int C=int_BINtoDEC(INSTR,26,31);
-            if(OP==2) jj(C);
-            else if(OP==3) jal(C);
+            if(OP==2){
+                jj(C);
+                if(test==1) printf("this J-type jj(%d)\n",C);
+            }
+            else if(OP==3){
+                jal(C);
+                if(test==1) printf("this J-type jal(%d)\n",C);
+            }
             else if(OP==63) break;
-            else printf("this is error J-instruction\n");
+            else{
+                if(test==1) printf("this is error J-instruction\n");
+            }
         }
         else{
             int RS=int_BINtoDEC(INSTR,5,10);
@@ -263,47 +316,102 @@ void instruction_decode(){
             int C=int_BINtoDEC(INSTR,16,31);
             int signedC=signed_int_BINtoDEC(INSTR,16,31);
 
-            if(OP==8) addi(RS,RT,C);
-            else if(OP==9) addiu(RS,RT,C);
-            else if(OP==35) lw(RS,RT,signedC);
-            else if(OP==33) lh(RS,RT,signedC);
-            else if(OP==37) lhu(RS,RT,C);
-            else if(OP==32) lb(RS,RT,signedC);
-            else if(OP==36) lbu(RS,RT,C);
-            else if(OP==43) sw(RS,RT,signedC);
-            else if(OP==41) sh(RS,RT,signedC);
-            else if(OP==40) sb(RS,RT,signedC);
-            else if(OP==15) lui(RT,C);
-            else if(OP==12) andi(RS,RT,C);
-            else if(OP==13) ori(RS,RT,C);
-            else if(OP==14) nori(RS,RT,C);
-            else if(OP==10) slti(RS,RT,C);
-            else if(OP==4) beq(RS,RT,signedC);
-            else if(OP==5) bne(RS,RT,signedC);
-            else if(OP==7) bgtz(RS,signedC);
-            else printf("this is I-error instruction\n");
+            if(OP==8){
+                addi(RS,RT,C);
+                if(test==1) printf("this I-type addi(%d,%d,%d)\n",RS,RT,C);
+            }
+            else if(OP==9){
+                addiu(RS,RT,C);
+                if(test==1) printf("this I-type addiu(%d,%d,%d)\n",RS,RT,C);
+            }
+            else if(OP==35){
+                lw(RS,RT,signedC);
+                if(test==1) printf("this I-type lw(%d,%d,%d)\n",RS,RT,signedC);
+            }
+            else if(OP==33){
+                lh(RS,RT,signedC);
+                if(test==1) printf("this I-type lh(%d,%d,%d)\n",RS,RT,C);
+            }
+            else if(OP==37){
+                lhu(RS,RT,C);
+                if(test==1) printf("this I-type lhu(%d,%d,%d)\n",RS,RT,C);
+            }
+            else if(OP==32){
+                lb(RS,RT,signedC);
+                if(test==1) printf("this I-type lb(%d,%d,%d)\n",RS,RT,signedC);
+            }
+            else if(OP==36){
+                lbu(RS,RT,C);
+                if(test==1) printf("this I-type lbu(%d,%d,%d)\n",RS,RT,C);
+            }
+            else if(OP==43){
+                sw(RS,RT,signedC);
+                if(test==1) printf("this I-type sw(%d,%d,%d)\n",RS,RT,signedC);
+            }
+            else if(OP==41){
+                sh(RS,RT,signedC);
+                if(test==1) printf("this I-type sh(%d,%d,%d)\n",RS,RT,signedC);
+            }
+            else if(OP==40){
+                sb(RS,RT,signedC);
+                if(test==1) printf("this I-type sb(%d,%d,%d)\n",RS,RT,signedC);
+            }
+            else if(OP==15){
+                lui(RT,C);
+                if(test==1) printf("this I-type lui(%d,%d)\n",RT,C);
+            }
+            else if(OP==12){
+                andi(RS,RT,C);
+                if(test==1) printf("this I-type andi(%d,%d,%d)\n",RS,RT,C);
+            }
+            else if(OP==13){
+                ori(RS,RT,C);
+                if(test==1) printf("this I-type ori(%d,%d,%d)\n",RS,RT,C);
+            }
+            else if(OP==14){
+                nori(RS,RT,C);
+                if(test==1) printf("this I-type nori(%d,%d,%d)\n",RS,RT,C);
+            }
+            else if(OP==10){
+                slti(RS,RT,C);
+                if(test==1) printf("this I-type slti(%d,%d,%d)\n",RS,RT,C);
+            }
+            else if(OP==4){
+                beq(RS,RT,signedC);
+                if(test==1) printf("this I-type beq(%d,%d,%d)\n",RS,RT,signedC);
+            }
+            else if(OP==5){
+                bne(RS,RT,signedC);
+                if(test==1) printf("this I-type bne(%d,%d,%d)\n",RS,RT,signedC);
+            }
+            else if(OP==7){
+                bgtz(RS,signedC);
+                if(test==1) printf("this I-type bgtz(%d,%d)\n",RS,signedC);
+            }
+            else{
+                if(test==1) printf("this is I-error instruction\n");
+            }
         }
         append_SNAP();
 
         /**do error detection**/
         if(write$0_error){
-            fprintf(fout, "In cycle %d: Write $0 Error\n", cycle);
+            fprintf(error, "In cycle %d: Write $0 Error\n", cycle);
             write$0_error=0;
         }
         if(number_overflow){
-            fprintf(fout, "In cycle %d: Number Overflow\n", cycle);
+            fprintf(error, "In cycle %d: Number Overflow\n", cycle);
             number_overflow=0;
         }
         if(memory_overflow){
-            fprintf(fout, "In cycle %d: Address Overflow\n", cycle);
+            fprintf(error, "In cycle %d: Address Overflow\n", cycle);
             break;
         }
         if(misaligned){
-            fprintf(fout, "In cycle %d: Misalignment Error\n", cycle);
+            fprintf(error, "In cycle %d: Misalignment Error\n", cycle);
             break;
         }
     }
-    fclose(fout);
 }
 
 /**R-type instructions**/
@@ -548,12 +656,7 @@ void sra(int rt, int rd, int shamt){
 }
 void jr(int rs){
     int j;
-    if(rs==0){
-        for(j=31; j>=0; j--) PC[j]='0';
-    }
-    else{
-        for(j=31; j>=0; j--) PC[j]=REG[rs][j];
-    }
+    for(j=31; j>=0; j--) PC_now[j]=REG[rs][j];
 }
 
 /**J-type instructions**/
@@ -646,49 +749,181 @@ void lw(int rs, int rt, int c){
 
     int i;
     for(i=0; i<8; i++){
-        REG[rt][i]=dmemory[][i];
-        REG[rt][i+8]=dmemory[][i];
-        REG[rt][i+16]=dmemory[][i];
-        REG[rt][i+24]=dmemory[][i];
+        REG[rt][i]=dmemory[result][i];
+        REG[rt][i+8]=dmemory[result+1][i];
+        REG[rt][i+16]=dmemory[result+2][i];
+        REG[rt][i+24]=dmemory[result+3][i];
     }
     PC_adder();
 }
 void lh(int rs, int rt, int c){
-    if(rt==0){
-        write$0_error=1;
-        return;
+    if(rt==0) write$0_error=1;
+
+    int result = char_BINtoDEC(REG[rs],32,31) + c;
+    if(char_BINtoDEC(REG[rs],32,31)>0 && c>0 && result<0)
+        number_overflow=1;
+    if(result>1023 || result<0 || result+1>1023)
+        memory_overflow=1;
+
+    int check = (REG[rs][31]-'0')+c;
+    if(check%2!=0)
+        misaligned=1;
+
+    if(write$0_error==1 || memory_overflow==1 || misaligned==1) return;
+
+    int i;
+    for(i=0; i<8; i++){
+        REG[rt][i+16]=dmemory[result][i];
+        REG[rt][i+24]=dmemory[result+1][i];
+    }
+
+    if(dmemory[result][0]=='0'){
+        for(i=0; i<16; i++) REG[rt][i]='0';
+    }
+    else{
+        for(i=0; i<16; i++) REG[rt][i]='1';
     }
     PC_adder();
 }
 void lhu(int rs, int rt, int c){
-    if(rt==0){
-        write$0_error=1;
-        return;
+    if(rt==0) write$0_error=1;
+
+    int result = char_BINtoDEC(REG[rs],32,31) + c;
+    if(char_BINtoDEC(REG[rs],32,31)>0 && c>0 && result<0)
+        number_overflow=1;
+    if(result>1023 || result<0 || result+1>1023)
+        memory_overflow=1;
+
+    int check = (REG[rs][31]-'0')+c;
+    if(check%2!=0)
+        misaligned=1;
+
+    if(write$0_error==1 || memory_overflow==1 || misaligned==1) return;
+
+    int i;
+    for(i=0; i<8; i++){
+        REG[rt][i+16]=dmemory[result][i];
+        REG[rt][i+24]=dmemory[result+1][i];
     }
+
+    for(i=0; i<16; i++) REG[rt][i]='0';
+
     PC_adder();
 }
 void lb(int rs, int rt, int c){
-    if(rt==0){
-        write$0_error=1;
-        return;
+    if(rt==0) write$0_error=1;
+
+    int result = char_BINtoDEC(REG[rs],32,31) + c;
+    if(char_BINtoDEC(REG[rs],32,31)>0 && c>0 && result<0)
+        number_overflow=1;
+    if(result>1023 || result<0)
+        memory_overflow=1;
+
+    int check = (REG[rs][31]-'0')+c;
+    if(check%2!=0)
+        misaligned=1;
+
+    if(write$0_error==1 || memory_overflow==1 || misaligned==1) return;
+
+    int i;
+    for(i=0; i<8; i++){
+        REG[rt][i+24]=dmemory[result][i];
+    }
+
+    if(dmemory[result][0]=='0'){
+        for(i=0; i<24; i++) REG[rt][i]='0';
+    }
+    else{
+        for(i=0; i<24; i++) REG[rt][i]='1';
     }
     PC_adder();
 }
 void lbu(int rs, int rt, int c){
-    if(rt==0){
-        write$0_error=1;
-        return;
+    if(rt==0) write$0_error=1;
+
+    int result = char_BINtoDEC(REG[rs],32,31) + c;
+    if(char_BINtoDEC(REG[rs],32,31)>0 && c>0 && result<0)
+        number_overflow=1;
+    if(result>1023 || result<0)
+        memory_overflow=1;
+
+    int check = (REG[rs][31]-'0')+c;
+    if(check%2!=0)
+        misaligned=1;
+
+    if(write$0_error==1 || memory_overflow==1 || misaligned==1) return;
+
+    int i;
+    for(i=0; i<8; i++){
+        REG[rt][i+24]=dmemory[result][i];
     }
+
+    for(i=0; i<24; i++) REG[rt][i]='0';
+
     PC_adder();
 }
 void sw(int rs, int rt, int c){
     //MEM[rs+c]->value = REG[rt-8]->value //改成address=rs+c的MEM的value才對
+
+    int result = char_BINtoDEC(REG[rs],32,31) + c;
+    if(char_BINtoDEC(REG[rs],32,31)>0 && c>0 && result<0)
+        number_overflow=1;
+    if(result>1023 || result<0 || result+1>1023 || result+2>1023 || result+3>1023)
+        memory_overflow=1;
+
+    int check = (REG[rs][31]-'0')+(REG[rs][30]-'0')*2+c;
+    if(check%4!=0)
+        misaligned=1;
+
+    if(memory_overflow==1 || misaligned==1) return;
+
+    int i;
+    for(i=0; i<8; i++){
+        dmemory[result][i]=REG[rt][i];
+        dmemory[result+1][i]=REG[rt][i+8];
+        dmemory[result+2][i]=REG[rt][i+16];
+        dmemory[result+3][i]=REG[rt][i+24];
+    }
     PC_adder();
 }
 void sh(int rs, int rt, int c){
+    int result = char_BINtoDEC(REG[rs],32,31) + c;
+    if(char_BINtoDEC(REG[rs],32,31)>0 && c>0 && result<0)
+        number_overflow=1;
+    if(result>1023 || result<0 || result+1>1023)
+        memory_overflow=1;
+
+    int check = (REG[rs][31]-'0')+(REG[rs][30]-'0')*2+c;
+    if(check%4!=0)
+        misaligned=1;
+
+    if(memory_overflow==1 || misaligned==1) return;
+
+    int i;
+    for(i=0; i<8; i++){
+        dmemory[result][i]=REG[rt][i+16];
+        dmemory[result+1][i]=REG[rt][i+24];
+    }
+
     PC_adder();
 }
 void sb(int rs, int rt, int c){
+    int result = char_BINtoDEC(REG[rs],32,31) + c;
+    if(char_BINtoDEC(REG[rs],32,31)>0 && c>0 && result<0)
+        number_overflow=1;
+    if(result>1023 || result<0)
+        memory_overflow=1;
+
+    int check = (REG[rs][31]-'0')+(REG[rs][30]-'0')*2+c;
+    if(check%4!=0)
+        misaligned=1;
+
+    if(memory_overflow==1 || misaligned==1) return;
+
+    int i;
+    for(i=0; i<8; i++){
+        dmemory[result][i]=REG[rt][i+24];
+    }
     PC_adder();
 }
 void lui(int rt, int c){
@@ -870,6 +1105,9 @@ int main(){
     instruction_fetch();
     initialize();
     instruction_decode();
+
+    fclose(snap);
+    fclose(error);
     return 0;
 }
 
