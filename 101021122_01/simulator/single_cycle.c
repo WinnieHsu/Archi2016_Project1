@@ -14,7 +14,7 @@ int write$0_error=0, number_overflow=0, memory_overflow=0, misaligned=0;
 
 FILE *snap, *error;
 
-int test=1; //whether to printf
+int test=0; //whether to printf
 
 void initial_SNAP(){
     int i, j;
